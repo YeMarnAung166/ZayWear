@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.dependencies import CurrentUserDep, SessionDep
 from app.models import Profile

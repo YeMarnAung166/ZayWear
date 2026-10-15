@@ -24,9 +24,7 @@ ZERO = Decimal("0.00")
 
 @router.get("", response_model=list[OrderRead])
 def my_orders(user: CurrentUserDep, session: SessionDep) -> list[Order]:
-    statement = (
-        select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc())
-    )
+    statement = select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc())
     return list(session.exec(statement).all())
 
 

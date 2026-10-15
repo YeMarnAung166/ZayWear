@@ -1,7 +1,7 @@
 # ZayWear
 
 ZayWear is a localized apparel e-commerce platform for the Myanmar market.
-Phone-OTP auth, variant-level catalog, township-based shipping, manual
+Email-OTP auth, variant-level catalog, township-based shipping, manual
 KBZPay/WavePay slip verification, COD, size-exchange tickets, and Telegram
 staff alerts.
 
@@ -12,7 +12,7 @@ for auth/storage setup.
 
 - **Backend** — FastAPI + SQLModel (sync) + PostgreSQL
 - **Frontend** — Next.js 14 App Router + Tailwind CSS
-- **Auth / Storage** — Supabase (phone OTP, slip bucket)
+- **Auth / Storage** — Supabase (email OTP, slip bucket)
 - **Alerts** — Telegram Bot API
 
 ## Layout
@@ -23,7 +23,7 @@ backend/alembic/  Database migrations
 backend/scripts/  Ops helpers (telegram_setup.py)
 frontend/ Next.js App Router (public / customer / admin)
 frontend/e2e/  Playwright end-to-end tests
-supabase/ storage.sql + SETUP.md  Storage bucket, RLS, phone-auth guide
+supabase/ storage.sql + SETUP.md  Storage bucket, RLS, email-auth guide
 ```
 
 ## Run
@@ -46,9 +46,10 @@ alembic upgrade head
 
 ### Supabase setup
 
-See [`supabase/SETUP.md`](supabase/SETUP.md) — enable the **Phone** provider,
-pick an SMS vendor, run [`supabase/storage.sql`](supabase/storage.sql) for the
-private `slips` bucket, and copy the project keys into `.env`.
+See [`supabase/SETUP.md`](supabase/SETUP.md) — enable the **Email** provider
+(with `{{ .Token }}` in the Magic Link template for the 6-digit code), run
+[`supabase/storage.sql`](supabase/storage.sql) for the private `slips` bucket,
+and copy the project keys into `.env`.
 
 ### Telegram alerts
 
@@ -68,14 +69,33 @@ python scripts/telegram_setup.py test       # sends a test message
 ```bash
 # backend — unit + integration (SQLite-backed, no services required)
 cd backend
-pip install -r requirements.txt
-pytest
+pip install -r requirements-dev.txt
+ruff check . && ruff format --check .
+pytest --cov=app --cov-report=term-missing
 
-# frontend — e2e (needs backend + Supabase test OTP)
+# frontend — lint/types/build + e2e
 cd frontend
-npm install && npx playwright install chromium
+npm install
+npm run lint && npm run typecheck && npm run build
+
+# e2e — smoke needs no backend; order-flow needs a backend + Supabase email OTP
+npx playwright install chromium
+npm run test:smoke
+# E2E_EMAIL, E2E_OTP, E2E_PHONE, E2E_VARIANT_ID (+ optional E2E_TOWNSHIP_ID)
 npm run test:e2e
 ```
+
+### Continuous integration
+
+GitHub Actions runs on every push/PR to `main`:
+
+- **Backend** — `ruff check` + `ruff format --check` + `pytest --cov` on Python 3.12.
+- **Frontend** — `lint` → `typecheck` → `build` → Playwright smoke.
+
+A separate `E2E (manual / nightly)` workflow runs the full order journey against a
+deployed backend when the `E2E_*` secrets are configured. Deploys (Vercel for the
+frontend, Render/Railway for the backend) stay on Git auto-deploy and are gated by
+requiring the CI checks on `main`.
 
 ## API overview
 

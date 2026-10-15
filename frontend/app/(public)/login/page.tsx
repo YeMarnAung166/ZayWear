@@ -5,20 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabaseClient";
 
-function toE164(input: string): string {
-  const digits = input.replace(/\D/g, "");
-  if (digits.startsWith("95")) return `+${digits}`;
-  if (digits.startsWith("0")) return `+95${digits.slice(1)}`;
-  return `+95${digits}`;
-}
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [stage, setStage] = useState<"phone" | "code">("phone");
+  const [stage, setStage] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +21,7 @@ function LoginForm() {
     setBusy(true);
     setError(null);
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      phone: toE164(phone),
+      email: email.trim(),
     });
     setBusy(false);
     if (otpError) {
@@ -40,9 +35,9 @@ function LoginForm() {
     setBusy(true);
     setError(null);
     const { error: verifyError } = await supabase.auth.verifyOtp({
-      phone: toE164(phone),
-      token: code,
-      type: "sms",
+      email: email.trim(),
+      token: code.trim(),
+      type: "email",
     });
     setBusy(false);
     if (verifyError) {
@@ -56,27 +51,28 @@ function LoginForm() {
     <div className="mx-auto max-w-sm py-16">
       <h1 className="mb-8 text-2xl font-normal">Sign in to ZayWear</h1>
 
-      {stage === "phone" ? (
+      {stage === "email" ? (
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-taupe">
-              Phone number
+              Email address
             </label>
             <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="09xxxxxxxxx"
-              inputMode="tel"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              inputMode="email"
+              autoComplete="email"
               className="w-full rounded border border-hairline bg-raised p-3 text-sm"
             />
           </div>
           <button
             type="button"
             onClick={sendOtp}
-            disabled={busy || phone.replace(/\D/g, "").length < 8}
+            disabled={busy || !EMAIL_PATTERN.test(email.trim())}
             className="w-full rounded bg-soot py-3 text-sm uppercase tracking-[0.08em] text-canvas disabled:opacity-40"
           >
-            {busy ? "Sending…" : "Send OTP"}
+            {busy ? "Sending…" : "Send code"}
           </button>
         </div>
       ) : (
@@ -89,13 +85,14 @@ function LoginForm() {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               inputMode="numeric"
+              autoComplete="one-time-code"
               className="w-full rounded border border-hairline bg-raised p-3 text-sm tracking-[0.3em]"
             />
           </div>
           <button
             type="button"
             onClick={verifyOtp}
-            disabled={busy || code.length < 4}
+            disabled={busy || code.trim().length < 4}
             className="w-full rounded bg-soot py-3 text-sm uppercase tracking-[0.08em] text-canvas disabled:opacity-40"
           >
             {busy ? "Verifying…" : "Verify"}

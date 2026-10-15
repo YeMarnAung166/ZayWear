@@ -1,0 +1,46 @@
+name: E2E (manual / nightly)
+
+# Full order journey (email OTP → checkout → slip upload). Runs the frontend
+# locally and talks to the backend at NEXT_PUBLIC_API_BASE_URL. Configure the
+# repository secrets below to actually execute the journey; without them the
+# order-flow spec skips itself and only the smoke spec runs.
+#
+#   E2E_EMAIL, E2E_OTP, E2E_PHONE, E2E_VARIANT_ID, E2E_TOWNSHIP_ID
+#   NEXT_PUBLIC_API_BASE_URL   (deployed backend URL)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+
+jobs:
+  order-flow:
+    name: Order journey
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000' }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'ci-placeholder-anon-key' }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_OTP: ${{ secrets.E2E_OTP }}
+      E2E_PHONE: ${{ secrets.E2E_PHONE }}
+      E2E_VARIANT_ID: ${{ secrets.E2E_VARIANT_ID }}
+      E2E_TOWNSHIP_ID: ${{ secrets.E2E_TOWNSHIP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run e2e
+        run: npm run test:e2e

@@ -4,7 +4,7 @@ Target architecture:
 
 | Layer | Service | Purpose |
 |---|---|---|
-| Database / Auth / Storage | **Supabase** | Postgres, phone-OTP auth, `slips` bucket |
+| Database / Auth / Storage | **Supabase** | Postgres, email-OTP auth, `slips` bucket |
 | Backend API | **Render** (Docker) | FastAPI + SQLModel |
 | Frontend | **Vercel** | Next.js App Router |
 
@@ -29,8 +29,10 @@ works as-is (it runs `alembic upgrade head` before booting).
    postgresql+psycopg://postgres.<ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:6543/postgres
    ```
    Percent-encode special characters in the password (`@ : / ? # & %`).
-4. **Authentication → Providers → Phone** — enable, add an SMS vendor (Twilio),
-   or use **Test OTP** for demos. See [`supabase/SETUP.md`](../supabase/SETUP.md).
+4. **Authentication → Providers → Email** — enable, and add `{{ .Token }}` to
+   the **Magic Link** template so the 6-digit code flow works. Add custom SMTP
+   for production (the built-in mailer is dev-only). See
+   [`supabase/SETUP.md`](../supabase/SETUP.md).
 5. **SQL Editor** — run [`supabase/storage.sql`](../supabase/storage.sql).
 
 > `SUPABASE_JWT_SECRET` is unused by the code (auth verifies via JWKS). Omit it.
@@ -89,6 +91,30 @@ then redeploy the backend. Open the Vercel URL — the project is live.
 
 ---
 
+## 5. CI / CD
+
+GitHub Actions (`.github/workflows/`):
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | push + PR to `main` | **Backend**: ruff lint/format + `pytest --cov` (Python 3.12). **Frontend**: lint → typecheck → build → Playwright smoke. |
+| `e2e.yml` | manual + nightly | Full order journey (email OTP → checkout → slip) against a deployed backend; runs only when the `E2E_*` secrets are set. |
+
+**Continuous deployment** stays on the provider Git integrations — Vercel
+(frontend) and Render/Railway (backend) deploy on push to `main`. Gate it by
+enabling **branch protection** on `main` and requiring the `Backend` and
+`Frontend` checks before merge.
+
+Optional `e2e.yml` repository secrets:
+
+| Secret | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | deployed backend URL |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | target Supabase project |
+| `E2E_EMAIL`, `E2E_OTP`, `E2E_PHONE`, `E2E_VARIANT_ID`, `E2E_TOWNSHIP_ID` | journey inputs |
+
+---
+
 ## Local runs (quick reference)
 
 Backend (SQLite preview, no Docker):
@@ -123,8 +149,10 @@ docker compose up --build
 
 - **Python 3.14 locally** cannot build the pinned `psycopg 3.2.3` / `pydantic 2.9.2`.
   The hosted Docker build uses Python 3.12, where the pins install fine.
-- **`/admin` browser pages** are gated by `middleware.ts` reading an
-  `sb-access-token` cookie, but supabase-js keeps its session in `localStorage`.
-  Admin is fully usable via the API with a bearer token; the cookie gate is a
-  known gap.
-- **Phone OTP** requires an SMS vendor; use Supabase **Test OTP** for demos.
+- **`/admin` browser pages** are gated by `middleware.ts`, which reads the
+  Supabase session cookie written by `@supabase/ssr`. A signed-in user reaches
+  the pages; admin *authorization* is still enforced by the backend via
+  `profiles.is_admin` / bearer token.
+- **Email OTP** works out of the box via Supabase's built-in mailer for dev;
+  configure SMTP for production deliverability. Phone OTP (with an SMS vendor)
+  is a future option.

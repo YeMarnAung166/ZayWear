@@ -39,18 +39,14 @@ def discover() -> None:
     response.raise_for_status()
     updates = response.json().get("result", [])
     if not updates:
-        sys.exit(
-            "No updates found. Send a message in the target chat, then retry."
-        )
+        sys.exit("No updates found. Send a message in the target chat, then retry.")
 
     seen: dict[int, str] = {}
     for update in updates:
         message = update.get("message") or update.get("channel_post") or {}
         chat = message.get("chat", {})
         if "id" in chat:
-            seen[chat["id"]] = (
-                chat.get("title") or chat.get("username") or chat.get("type", "?")
-            )
+            seen[chat["id"]] = chat.get("title") or chat.get("username") or chat.get("type", "?")
 
     print("Chat ids found:")
     for chat_id, label in seen.items():

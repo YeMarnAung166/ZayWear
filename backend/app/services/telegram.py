@@ -27,9 +27,7 @@ def send_order_alert(order: Order) -> None:
         logger.warning("Telegram not configured; skipping alert for order %s", order.id)
         return
 
-    url = (
-        f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
-    )
+    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
     try:
         response = httpx.post(
             url,

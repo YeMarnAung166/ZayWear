@@ -4,8 +4,6 @@ from decimal import Decimal
 import pytest
 
 from app.models import (
-    OrderItem,
-    OrderStatus,
     Product,
     ProductVariant,
     Township,
@@ -69,9 +67,7 @@ def _order_payload(catalog: dict, *, method: str = "kbzpay", qty: int = 2) -> di
 
 
 def test_full_order_lifecycle(client, session, catalog, monkeypatch):
-    monkeypatch.setattr(
-        storage, "upload_slip", lambda *a, **k: "slips/orders/1/slip.png"
-    )
+    monkeypatch.setattr(storage, "upload_slip", lambda *a, **k: "slips/orders/1/slip.png")
 
     resp = client.post("/orders", json=_order_payload(catalog))
     assert resp.status_code == 201, resp.text
@@ -103,14 +99,10 @@ def test_full_order_lifecycle(client, session, catalog, monkeypatch):
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "paid"
 
-    resp = client.patch(
-        f"/admin/orders/{order_id}/status", json={"status": "dispatched"}
-    )
+    resp = client.patch(f"/admin/orders/{order_id}/status", json={"status": "dispatched"})
     assert resp.status_code == 200
 
-    resp = client.patch(
-        f"/admin/orders/{order_id}/status", json={"status": "delivered"}
-    )
+    resp = client.patch(f"/admin/orders/{order_id}/status", json={"status": "delivered"})
     assert resp.status_code == 200
     assert resp.json()["delivered_at"] is not None
 
@@ -130,9 +122,7 @@ def test_illegal_transition_is_rejected(client, session, catalog):
     resp = client.post("/orders", json=_order_payload(catalog))
     order_id = resp.json()["id"]
 
-    resp = client.patch(
-        f"/admin/orders/{order_id}/status", json={"status": "delivered"}
-    )
+    resp = client.patch(f"/admin/orders/{order_id}/status", json={"status": "delivered"})
     assert resp.status_code == 409
     assert "Illegal order transition" in resp.json()["detail"]
 
@@ -166,7 +156,7 @@ def test_cod_unavailable_for_township(client, session, catalog):
 
 
 def test_exchange_window_enforced(client, session, catalog, monkeypatch):
-    from datetime import datetime, timedelta, timezone
+    from datetime import timezone
 
     from app.models import Order
 
@@ -174,9 +164,7 @@ def test_exchange_window_enforced(client, session, catalog, monkeypatch):
 
     resp = client.post("/orders", json=_order_payload(catalog))
     order_id = resp.json()["id"]
-    client.post(
-        f"/orders/{order_id}/slip", files={"file": ("s.png", PNG, "image/png")}
-    )
+    client.post(f"/orders/{order_id}/slip", files={"file": ("s.png", PNG, "image/png")})
     client.post(f"/admin/orders/{order_id}/verify", json={"approve": True})
     client.patch(f"/admin/orders/{order_id}/status", json={"status": "dispatched"})
     client.patch(f"/admin/orders/{order_id}/status", json={"status": "delivered"})

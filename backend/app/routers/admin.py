@@ -52,6 +52,7 @@ def verify_slip(
     session.refresh(order)
     return order
 
+
 @router.get("/orders", response_model=list[OrderRead])
 def all_orders(
     session: SessionDep,

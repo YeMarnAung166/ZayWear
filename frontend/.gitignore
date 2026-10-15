@@ -9,3 +9,8 @@
 __pycache__/
 *.pyc
 .venv/
+
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

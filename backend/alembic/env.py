@@ -1,11 +1,11 @@
 import os
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401 - register tables on the metadata
+from alembic import context
 from app.config import settings
 
 config = context.config

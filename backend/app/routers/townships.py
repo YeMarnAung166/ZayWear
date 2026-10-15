@@ -28,9 +28,7 @@ def create_township(
     session: SessionDep,
     _admin: AdminUserDep,
 ) -> Township:
-    existing = session.exec(
-        select(Township).where(Township.name == payload.name)
-    ).first()
+    existing = session.exec(select(Township).where(Township.name == payload.name)).first()
     if existing is not None:
         raise HTTPException(status_code=409, detail="Township already exists")
 

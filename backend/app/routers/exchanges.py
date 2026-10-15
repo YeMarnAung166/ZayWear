@@ -52,9 +52,7 @@ def open_exchange(
 
 @router.get("", response_model=list[ExchangeRead])
 def my_exchanges(user: CurrentUserDep, session: SessionDep) -> list[ExchangeTicket]:
-    order_ids = list(
-        session.exec(select(Order.id).where(Order.user_id == user.id)).all()
-    )
+    order_ids = list(session.exec(select(Order.id).where(Order.user_id == user.id)).all())
     if not order_ids:
         return []
     statement = (

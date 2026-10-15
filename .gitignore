@@ -19,3 +19,8 @@ out/
 *.log
 .pytest_cache/
 tsconfig.tsbuildinfo
+
+# Python tooling
+.coverage
+htmlcov/
+.ruff_cache/

@@ -19,7 +19,12 @@ from app.models import Product, ProductVariant, Township
 TOWNSHIPS = [
     {"name": "Mayangone", "region": "Yangon", "shipping_fee": "2000", "supports_cod": True},
     {"name": "Hlaing", "region": "Yangon", "shipping_fee": "2500", "supports_cod": True},
-    {"name": "Chan Aye Thar Zan", "region": "Mandalay", "shipping_fee": "3500", "supports_cod": True},
+    {
+        "name": "Chan Aye Thar Zan",
+        "region": "Mandalay",
+        "shipping_fee": "3500",
+        "supports_cod": True,
+    },
     {"name": "Remote / Village", "region": "Other", "shipping_fee": "6000", "supports_cod": False},
 ]
 
@@ -96,9 +101,7 @@ def seed() -> None:
                 )
 
         session.commit()
-        print(
-            f"Seeded {len(PRODUCTS)} products and {len(TOWNSHIPS)} townships."
-        )
+        print(f"Seeded {len(PRODUCTS)} products and {len(TOWNSHIPS)} townships.")
 
 
 if __name__ == "__main__":
