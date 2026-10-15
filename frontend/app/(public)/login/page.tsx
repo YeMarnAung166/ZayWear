@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabaseClient";
@@ -12,7 +12,7 @@ function toE164(input: string): string {
   return `+95${digits}`;
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -105,5 +105,13 @@ export default function LoginPage() {
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-sm py-16" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

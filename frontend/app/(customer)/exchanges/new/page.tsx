@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
@@ -17,7 +17,7 @@ interface Order {
   items: OrderItem[];
 }
 
-export default function NewExchangePage() {
+function NewExchangeForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order");
@@ -131,5 +131,13 @@ export default function NewExchangePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function NewExchangePage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-sm py-16" />}>
+      <NewExchangeForm />
+    </Suspense>
   );
 }
