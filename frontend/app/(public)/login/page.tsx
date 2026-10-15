@@ -49,7 +49,10 @@ function LoginForm() {
 
   return (
     <div className="mx-auto max-w-sm py-16">
-      <h1 className="mb-8 text-2xl font-normal">Sign in to ZayWear</h1>
+      <h1 className="mb-2 text-2xl font-normal">Sign in to ZayWear</h1>
+      <p className="mb-8 text-sm text-taupe">
+        New here? Enter your email to create your account automatically.
+      </p>
 
       {stage === "email" ? (
         <div className="space-y-4">
