@@ -1,11 +1,4 @@
-import Link from "next/link";
-
-const NAV_ITEMS = [
-  { href: "/admin/slips", label: "Slip Verification" },
-  { href: "/admin/orders", label: "Orders & Fulfillment" },
-  { href: "/admin/exchanges", label: "Exchanges" },
-  { href: "/admin/townships", label: "Township Rates" },
-];
+import AdminNav from "@/components/AdminNav";
 
 export default function AdminLayout({
   children,
@@ -13,24 +6,28 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-8">
-      <aside className="w-56 shrink-0">
-        <h2 className="mb-4 text-sm font-semibold uppercase text-gray-500">
-          Admin
-        </h2>
-        <nav className="space-y-1">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded px-3 py-2 text-sm hover:bg-gray-100"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <section className="flex-1">{children}</section>
-    </div>
+    <main className="mx-auto w-full max-w-7xl flex-grow px-space-lg py-space-xl md:px-margin">
+      <header className="mb-space-lg border-b border-surface-container-highest pb-space-md">
+        <span className="text-label-sm font-label-sm uppercase tracking-widest text-secondary">
+          Atelier Console
+        </span>
+        <h1 className="mt-1 font-headline-lg text-headline-lg tracking-tight text-primary">
+          Operations
+        </h1>
+        <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
+          Fulfil slips, dispatch orders, resolve exchanges, and tune township
+          delivery rates.
+        </p>
+      </header>
+
+      <div className="flex flex-col gap-8 lg:flex-row">
+        <aside className="lg:w-64 lg:shrink-0">
+          <div className="rounded border border-surface-container-highest bg-surface-container-low p-2 lg:sticky lg:top-28">
+            <AdminNav />
+          </div>
+        </aside>
+        <section className="min-w-0 flex-1">{children}</section>
+      </div>
+    </main>
   );
 }
