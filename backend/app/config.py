@@ -25,6 +25,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:3000"
 
+    @staticmethod
+    def _clean_origin(value: object) -> str:
+        return str(value).strip().strip('"').strip("'").strip().rstrip("/")
+
     @property
     def cors_origins_list(self) -> list[str]:
         raw = (self.cors_origins or "").strip()
@@ -36,8 +40,8 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 parsed = None
             if isinstance(parsed, list):
-                return [str(item).strip().rstrip("/") for item in parsed if str(item).strip()]
-        return [part.strip().rstrip("/") for part in raw.split(",") if part.strip()]
+                return [self._clean_origin(item) for item in parsed if self._clean_origin(item)]
+        return [self._clean_origin(part) for part in raw.split(",") if self._clean_origin(part)]
 
 
 @lru_cache
