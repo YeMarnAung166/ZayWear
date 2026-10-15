@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     app_name: str = "ZayWear API"
     environment: str = "development"
-    debug: bool = True
+    debug: bool = False
 
     database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/apparel"
 
