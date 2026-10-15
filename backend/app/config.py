@@ -36,8 +36,8 @@ class Settings(BaseSettings):
             except json.JSONDecodeError:
                 parsed = None
             if isinstance(parsed, list):
-                return [str(item).strip() for item in parsed if str(item).strip()]
-        return [part.strip() for part in raw.split(",") if part.strip()]
+                return [str(item).strip().rstrip("/") for item in parsed if str(item).strip()]
+        return [part.strip().rstrip("/") for part in raw.split(",") if part.strip()]
 
 
 @lru_cache
