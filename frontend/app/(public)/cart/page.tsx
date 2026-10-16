@@ -53,7 +53,7 @@ export default function CartPage() {
 
   const loadCatalog = useCallback(async () => {
     try {
-      const data = await api.get<Product[]>("/products");
+      const data = await api.get<Product[]>(`/products?t=${Date.now()}`);
       setProducts(Array.isArray(data) ? data : []);
       setCatalogError(false);
     } catch {
@@ -66,7 +66,7 @@ export default function CartPage() {
     setCart(readCart());
     void loadCatalog();
     api
-      .get<Township[]>("/townships")
+      .get<Township[]>(`/townships?t=${Date.now()}`)
       .then(setTownships)
       .catch(() => setTownships([]));
   }, [loadCatalog]);

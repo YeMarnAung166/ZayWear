@@ -57,11 +57,11 @@ export default function CheckoutPage() {
   useEffect(() => {
     setCart(readCart());
     api
-      .get<Township[]>("/townships")
+      .get<Township[]>(`/townships?t=${Date.now()}`)
       .then(setTownships)
       .catch(() => setTownships([]));
     api
-      .get<Product[]>("/products")
+      .get<Product[]>(`/products?t=${Date.now()}`)
       .then(setProducts)
       .catch(() => setProducts([]));
   }, []);
