@@ -32,6 +32,15 @@ interface Product {
 
 type PaymentMethod = "kbzpay" | "wavepay" | "cod";
 
+interface CartRow {
+  variantId: number;
+  quantity: number;
+  name: string;
+  size: string;
+  color: string;
+  unit: number;
+  imageUrl: string | null;
+}
 export default function CheckoutPage() {
   const router = useRouter();
   const [townships, setTownships] = useState<Township[]>([]);
@@ -59,22 +68,41 @@ export default function CheckoutPage() {
 
   const township = townships.find((t) => t.id === townshipId) ?? null;
 
-  const detailed = useMemo(() => {
-    return cart
-      .map((line) => {
-        for (const product of products) {
-          const variant = product.variants.find((v) => v.id === line.variantId);
-          if (variant) {
-            const unit = Number(product.base_price) + Number(variant.price_delta);
-            return { line, product, variant, unit };
-          }
+  const detailed = useMemo<CartRow[]>(() => {
+    return cart.flatMap((line) => {
+      for (const product of products) {
+        const variant = product.variants.find((v) => v.id === line.variantId);
+        if (variant) {
+          return [
+            {
+              variantId: variant.id,
+              quantity: line.quantity,
+              name: product.name,
+              size: variant.size,
+              color: variant.color,
+              unit: Number(product.base_price) + Number(variant.price_delta),
+              imageUrl: product.image_url,
+            },
+          ];
         }
-        return null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+      }
+      if (line.snapshot) {
+        return [
+          {
+            variantId: line.variantId,
+            quantity: line.quantity,
+            name: line.snapshot.name,
+            size: line.snapshot.size,
+            color: line.snapshot.color,
+            unit: line.snapshot.unitPrice,
+            imageUrl: line.snapshot.imageUrl,
+          },
+        ];
+      }
+      return [];
+    });
   }, [cart, products]);
-
-  const subtotal = detailed.reduce((sum, d) => sum + d.unit * d.line.quantity, 0);
+  const subtotal = detailed.reduce((sum, d) => sum + d.unit * d.quantity, 0);
 
   async function submitOrder() {
     if (cart.length === 0) {
@@ -118,12 +146,9 @@ export default function CheckoutPage() {
     }
   }
 
-  const itemCount = detailed.reduce((sum, d) => sum + d.line.quantity, 0);
+  const itemCount = detailed.reduce((sum, d) => sum + d.quantity, 0);
   const shipping_fee = township ? Number(township.shipping_fee) : 0;
-  const total_due = detailed.reduce(
-    (sum, d) => sum + d.unit * d.line.quantity,
-    0,
-  ) + shipping_fee;
+  const total_due = subtotal + shipping_fee;
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-grow px-space-lg py-space-xl md:px-margin">
@@ -364,14 +389,14 @@ export default function CheckoutPage() {
               </div>
 
               <ul className="space-y-4">
-                {detailed.map(({ line, product, variant, unit }) => (
-                  <li key={variant.id} className="flex gap-3">
+                {detailed.map(({ variantId, quantity, name, size, color, unit, imageUrl }) => (
+                  <li key={variantId} className="flex gap-3">
                     <div className="relative h-16 w-14 flex-shrink-0 overflow-hidden rounded bg-surface-container">
-                      {product.image_url ? (
+                      {imageUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={product.image_url}
-                          alt={product.name}
+                          src={imageUrl}
+                          alt={name}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -384,14 +409,14 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex flex-1 flex-col">
                       <span className="text-body-sm font-medium text-primary">
-                        {product.name}
+                        {name}
                       </span>
                       <span className="text-label-sm font-label-sm text-on-surface-variant">
-                        {variant.size} • {variant.color} • ×{line.quantity}
+                        {size} • {color} • ×{quantity}
                       </span>
                     </div>
                     <span className="text-body-sm font-medium text-primary">
-                      {Number(unit * line.quantity).toLocaleString()} MMK
+                      {Number(unit * quantity).toLocaleString()} MMK
                     </span>
                   </li>
                 ))}

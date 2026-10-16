@@ -13,17 +13,17 @@ export class ApiError extends Error {
   }
 }
 
-async function authHeaders(
-  json = true,
-): Promise<Record<string, string>> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
+async function authHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {};
-  if (json) headers["Content-Type"] = "application/json";
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+  } catch {
+    // Session store unavailable — continue as an anonymous request.
   }
   return headers;
 }
@@ -32,7 +32,17 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const headers = { ...(await authHeaders()), ...(options.headers ?? {}) };
+  const headers: Record<string, string> = {
+    ...(await authHeaders()),
+    ...((options.headers as Record<string, string>) ?? {}),
+  };
+
+  if (
+    typeof options.body === "string" &&
+    !headers["Content-Type"]
+  ) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -52,7 +62,7 @@ export async function apiFetch<T>(
 }
 
 export async function uploadSlip<T>(orderId: number, file: File): Promise<T> {
-  const headers = await authHeaders(false);
+  const headers = await authHeaders();
   const form = new FormData();
   form.append("file", file);
 

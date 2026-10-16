@@ -1,6 +1,16 @@
-﻿export interface CartLine {
+﻿export interface CartSnapshot {
+  productId: number;
+  name: string;
+  size: string;
+  color: string;
+  unitPrice: number;
+  imageUrl: string | null;
+}
+
+export interface CartLine {
   variantId: number;
   quantity: number;
+  snapshot?: CartSnapshot;
 }
 
 const STORAGE_KEY = "zaywear.cart";
@@ -16,24 +26,41 @@ export function readCart(): CartLine[] {
   }
 }
 
-export function writeCart(lines: CartLine[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
-  window.dispatchEvent(new Event(CART_EVENT));
+export function writeCart(lines: CartLine[]): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
+    window.dispatchEvent(new Event(CART_EVENT));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function clearCart(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
-  window.dispatchEvent(new Event(CART_EVENT));
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.dispatchEvent(new Event(CART_EVENT));
+  } catch {
+    return;
+  }
 }
 
-export function addToCart(variantId: number, quantity = 1): void {
+export function addToCart(
+  variantId: number,
+  quantity = 1,
+  snapshot?: CartSnapshot,
+): boolean {
   const cart = readCart();
   const existing = cart.find((line) => line.variantId === variantId);
-  if (existing) existing.quantity += quantity;
-  else cart.push({ variantId, quantity });
-  writeCart(cart);
+  if (existing) {
+    existing.quantity += quantity;
+    if (snapshot) existing.snapshot = snapshot;
+  } else {
+    cart.push({ variantId, quantity, snapshot });
+  }
+  return writeCart(cart);
 }
 
 export function cartCount(lines?: CartLine[]): number {

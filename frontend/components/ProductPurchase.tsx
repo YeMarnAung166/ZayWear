@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import VariantSelector, { type Variant } from "@/components/VariantSelector";
 import SizeChartModal from "@/components/SizeChartModal";
-import { addToCart } from "@/lib/cart";
+import { addToCart, type CartSnapshot } from "@/lib/cart";
 
 export interface ProductPurchaseProps {
   product: {
@@ -13,6 +13,7 @@ export interface ProductPurchaseProps {
     name: string;
     description: string | null;
     base_price: string;
+    image_url: string | null;
     variants: Variant[];
   };
 }
@@ -72,6 +73,7 @@ export default function ProductPurchase({ product }: ProductPurchaseProps) {
     product.variants[0] ?? null,
   );
   const [added, setAdded] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const price = Number(product.base_price) + Number(selected?.price_delta ?? 0);
@@ -82,7 +84,21 @@ export default function ProductPurchase({ product }: ProductPurchaseProps) {
 
   function handleAdd() {
     if (!selected || !inStock) return;
-    addToCart(selected.id, 1);
+    const snapshot: CartSnapshot = {
+      productId: product.id,
+      name: product.name,
+      size: selected.size,
+      color: selected.color,
+      unitPrice: price,
+      imageUrl: product.image_url ?? null,
+    };
+    const ok = addToCart(selected.id, 1, snapshot);
+    if (!ok) {
+      setSaveError(true);
+      window.setTimeout(() => setSaveError(false), 4000);
+      return;
+    }
+    setSaveError(false);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 2500);
   }
@@ -204,6 +220,16 @@ export default function ProductPurchase({ product }: ProductPurchaseProps) {
           >
             View shopping bag
           </Link>
+        )}
+
+        {saveError && (
+          <p
+            role="alert"
+            className="text-center text-body-sm text-error"
+          >
+            Couldn&apos;t save to your bag — enable cookies/local storage and try
+            again.
+          </p>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -29,6 +29,16 @@ interface Township {
   supports_cod: boolean;
 }
 
+interface CartRow {
+  variantId: number;
+  quantity: number;
+  name: string;
+  size: string;
+  color: string;
+  unit: number;
+  imageUrl: string | null;
+}
+
 function formatMmk(value: number): string {
   return `${new Intl.NumberFormat("en-US").format(value)} MMK`;
 }
@@ -39,41 +49,71 @@ export default function CartPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [townshipId, setTownshipId] = useState<number | null>(null);
   const [voucherMsg, setVoucherMsg] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState(false);
+
+  const loadCatalog = useCallback(async () => {
+    try {
+      const data = await api.get<Product[]>("/products");
+      setProducts(Array.isArray(data) ? data : []);
+      setCatalogError(false);
+    } catch {
+      setProducts([]);
+      setCatalogError(true);
+    }
+  }, []);
 
   useEffect(() => {
     setCart(readCart());
-    api
-      .get<Product[]>("/products")
-      .then(setProducts)
-      .catch(() => setProducts([]));
+    void loadCatalog();
     api
       .get<Township[]>("/townships")
       .then(setTownships)
       .catch(() => setTownships([]));
-  }, []);
+  }, [loadCatalog]);
 
   function persist(next: CartLine[]) {
     setCart(next);
     writeCart(next);
   }
 
-  const detailed = useMemo(() => {
-    return cart
-      .map((line) => {
-        for (const product of products) {
-          const variant = product.variants.find((v) => v.id === line.variantId);
-          if (variant) {
-            const unit = Number(product.base_price) + Number(variant.price_delta);
-            return { line, product, variant, unit };
-          }
+  const rows = useMemo<CartRow[]>(() => {
+    return cart.flatMap((line) => {
+      for (const product of products) {
+        const variant = product.variants.find((v) => v.id === line.variantId);
+        if (variant) {
+          return [
+            {
+              variantId: variant.id,
+              quantity: line.quantity,
+              name: product.name,
+              size: variant.size,
+              color: variant.color,
+              unit: Number(product.base_price) + Number(variant.price_delta),
+              imageUrl: product.image_url,
+            },
+          ];
         }
-        return null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+      }
+      if (line.snapshot) {
+        return [
+          {
+            variantId: line.variantId,
+            quantity: line.quantity,
+            name: line.snapshot.name,
+            size: line.snapshot.size,
+            color: line.snapshot.color,
+            unit: line.snapshot.unitPrice,
+            imageUrl: line.snapshot.imageUrl,
+          },
+        ];
+      }
+      return [];
+    });
   }, [cart, products]);
 
-  const itemCount = detailed.reduce((sum, d) => sum + d.line.quantity, 0);
-  const subtotal = detailed.reduce((sum, d) => sum + d.unit * d.line.quantity, 0);
+  const unresolvedCount = cart.length - rows.length;
+  const itemCount = rows.reduce((sum, row) => sum + row.quantity, 0);
+  const subtotal = rows.reduce((sum, row) => sum + row.unit * row.quantity, 0);
   const township = townships.find((t) => t.id === townshipId) ?? null;
   const shipping = township ? Number(township.shipping_fee) : 0;
   const total = subtotal + shipping;
@@ -88,7 +128,7 @@ export default function CartPage() {
         <span className="font-medium text-primary">Shopping Cart</span>
       </nav>
 
-      {detailed.length === 0 ? (
+      {cart.length === 0 ? (
         <section className="flex flex-col items-center py-space-xl text-center">
           <div className="mb-space-md flex h-16 w-16 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
             <span className="material-symbols-outlined text-[32px]">
@@ -109,6 +149,29 @@ export default function CartPage() {
             Explore New Arrivals
           </Link>
         </section>
+      ) : rows.length === 0 ? (
+        <section className="flex flex-col items-center py-space-xl text-center">
+          <div className="mb-space-md flex h-16 w-16 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
+            <span className="material-symbols-outlined text-[32px]">
+              cloud_off
+            </span>
+          </div>
+          <h1 className="font-headline-lg text-headline-lg tracking-tight text-primary">
+            We couldn&apos;t load your bag
+          </h1>
+          <p className="mt-3 max-w-md font-body-lg text-body-lg text-on-surface-variant">
+            {catalogError
+              ? "Your saved items are still safe — we just couldn't reach our catalogue. Please try again."
+              : "These items are no longer available. Please remove them or start a new bag."}
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadCatalog()}
+            className="mt-8 inline-block rounded-lg bg-primary-container px-8 py-3.5 text-label-md font-label-md uppercase tracking-[0.08em] text-surface-bright transition-colors hover:bg-[#2b2b2b]"
+          >
+            Retry
+          </button>
+        </section>
       ) : (
         <>
           <div className="mb-space-lg flex flex-col justify-between border-b border-surface-container-highest pb-space-md md:flex-row md:items-end">
@@ -123,21 +186,29 @@ export default function CartPage() {
             </div>
           </div>
 
+          {unresolvedCount > 0 && (
+            <p className="mb-space-md rounded border border-outline-variant/60 bg-surface-container-low px-4 py-3 text-body-sm text-on-surface-variant">
+              {unresolvedCount}{" "}
+              {unresolvedCount === 1 ? "item" : "items"} in your bag couldn&apos;t
+              be loaded and won&apos;t appear below.
+            </p>
+          )}
+
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
             <section className="flex flex-col space-y-6 lg:col-span-7 xl:col-span-8">
               <div className="divide-y divide-surface-container-highest border-y border-surface-container-highest">
-                {detailed.map(({ line, product, variant, unit }) => {
-                  const rowTotal = unit * line.quantity;
+                {rows.map(({ variantId, quantity, name, size, color, unit, imageUrl }) => {
+                  const rowTotal = unit * quantity;
                   return (
                     <article
-                      key={variant.id}
+                      key={variantId}
                       className="flex flex-col gap-5 py-6 sm:flex-row"
                     >
                       <div className="relative h-56 w-full flex-shrink-0 overflow-hidden rounded bg-surface-container sm:h-44 sm:w-32">
-                        {product.image_url ? (
+                        {imageUrl ? (
                           <Image
-                            src={product.image_url}
-                            alt={product.name}
+                            src={imageUrl}
+                            alt={name}
                             fill
                             sizes="(max-width: 640px) 100vw, 128px"
                             className="object-cover object-center"
@@ -158,7 +229,7 @@ export default function CartPage() {
                                 ZayWear Atelier
                               </span>
                               <h2 className="mt-0.5 font-headline-sm text-headline-sm text-primary">
-                                {product.name}
+                                {name}
                               </h2>
                             </div>
                             <button
@@ -167,7 +238,7 @@ export default function CartPage() {
                               onClick={() =>
                                 persist(
                                   cart.filter(
-                                    (l) => l.variantId !== variant.id,
+                                    (l) => l.variantId !== variantId,
                                   ),
                                 )
                               }
@@ -181,15 +252,15 @@ export default function CartPage() {
                           <p className="mt-1.5 font-body-sm text-body-sm text-on-surface-variant">
                             Size:{" "}
                             <span className="font-medium text-primary">
-                              {variant.size}
+                              {size}
                             </span>{" "}
                             &nbsp;|&nbsp; Color:{" "}
                             <span className="font-medium text-primary">
-                              {variant.color}
+                              {color}
                             </span>
                           </p>
                           <p className="mt-1 text-label-sm font-label-sm text-on-surface-variant">
-                            SKU: ZW-{String(variant.id).padStart(4, "0")} • Hand
+                            SKU: ZW-{String(variantId).padStart(4, "0")} • Hand
                             finished in Myanmar
                           </p>
                         </div>
@@ -201,7 +272,7 @@ export default function CartPage() {
                               onClick={() =>
                                 persist(
                                   cart.map((l) =>
-                                    l.variantId === variant.id
+                                    l.variantId === variantId
                                       ? {
                                           ...l,
                                           quantity: Math.max(1, l.quantity - 1),
@@ -217,14 +288,14 @@ export default function CartPage() {
                               </span>
                             </button>
                             <span className="w-10 text-center text-label-md font-label-md text-primary">
-                              {line.quantity}
+                              {quantity}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 persist(
                                   cart.map((l) =>
-                                    l.variantId === variant.id
+                                    l.variantId === variantId
                                       ? {
                                           ...l,
                                           quantity: Math.min(99, l.quantity + 1),
