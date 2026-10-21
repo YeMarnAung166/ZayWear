@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#E8EEF2"/>
+  <path d="M300 300 L380 258 L450 292 L520 258 L600 300 L690 470 L612 520 L590 460 L590 920 L310 920 L310 460 L288 520 L210 470 Z" fill="#FAFAFA" stroke="#D3DEE5" stroke-width="4"/>
+  <path d="M380 258 L450 330 L520 258" fill="none" stroke="#C9D6DF" stroke-width="8"/>
+  <line x1="450" y1="336" x2="450" y2="910" stroke="#E1E8ED" stroke-width="6"/>
+  <circle cx="450" cy="430" r="7" fill="#D3DEE5"/>
+  <circle cx="450" cy="540" r="7" fill="#D3DEE5"/>
+  <circle cx="450" cy="650" r="7" fill="#D3DEE5"/>
+  <rect x="330" y="380" width="90" height="80" rx="6" fill="none" stroke="#E1E8ED" stroke-width="6"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#8FA3B0">OXFORD SHIRT</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#A6B7C2">WHITE</text>
+</svg>

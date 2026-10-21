@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#F5EFE6"/>
+  <path d="M300 300 L380 262 Q450 328 520 262 L600 300 L676 480 Q600 540 560 500 L560 920 L340 920 L340 500 Q300 540 224 480 Z" fill="#EFE6D8" stroke="#E0D3C0" stroke-width="4"/>
+  <path d="M380 262 Q450 328 520 262" fill="none" stroke="#D9C9B2" stroke-width="10" stroke-linecap="round"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#A9967C">COTTON BLOUSE</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#B9A78E">CREAM</text>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#F1E9DC"/>
+  <path d="M300 300 L380 258 Q450 300 520 258 L600 300 L690 430 L612 480 L590 428 L590 920 L310 920 L310 428 L288 480 L210 430 Z" fill="#C9AE8B"/>
+  <path d="M380 258 Q450 300 520 258" fill="none" stroke="#B79A75" stroke-width="10" stroke-linecap="round"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#8A7A63">BASIC COTTON TEE</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#A7977E">SAND</text>
+</svg>

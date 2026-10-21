@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#E6EEF4"/>
+  <path d="M300 300 L380 260 L450 300 L520 260 L600 300 L700 470 L614 512 L590 452 L590 920 L310 920 L310 452 L286 512 L200 470 Z" fill="#A8C8DC"/>
+  <path d="M380 260 L450 340 L520 260" fill="none" stroke="#8FB3CA" stroke-width="8"/>
+  <line x1="450" y1="346" x2="450" y2="910" stroke="#96BBD2" stroke-width="6"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#7D9DB2">LINEN SHORT SLEEVE</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#93AEC0">SKY</text>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#F6E8E2"/>
+  <path d="M340 290 L400 258 Q450 300 500 258 L560 290 L592 346 L556 390 L556 540 L664 930 L236 930 L344 540 L344 390 L308 346 Z" fill="#B4553C"/>
+  <path d="M344 540 L556 540" stroke="#9C4630" stroke-width="10"/>
+  <path d="M344 560 Q450 600 556 560" fill="none" stroke="#9C4630" stroke-width="8"/>
+  <circle cx="450" cy="580" r="12" fill="#9C4630"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#A86A56">MIDI DRESS</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#BE8574">TERRACOTTA</text>
+</svg>

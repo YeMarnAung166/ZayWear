@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200">
+  <rect width="900" height="1200" fill="#E9EBE3"/>
+  <path d="M320 280 L580 280 L606 760 L626 940 L476 940 L456 640 L424 940 L274 940 L294 760 Z" fill="#5A6247"/>
+  <rect x="320" y="330" width="260" height="34" fill="#4C5340"/>
+  <rect x="360" y="380" width="180" height="26" fill="#4C5340"/>
+  <rect x="300" y="620" width="90" height="130" rx="8" fill="#4C5340"/>
+  <rect x="510" y="620" width="90" height="130" rx="8" fill="#4C5340"/>
+  <circle cx="450" cy="330" r="9" fill="#B9BFAE"/>
+  <text x="450" y="1040" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" letter-spacing="8" fill="#77806A">CARGO PANTS</text>
+  <text x="450" y="1082" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4" fill="#8B937E">OLIVE</text>
+</svg>

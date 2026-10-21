@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-500: #1a1a1a;
+  --color-primary-600: #000000;
+
+  --color-accent-500: #c8102e;
+  --color-accent-600: #a00d24;
+
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f7f7f7;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-500: #8a8a8a;
+  --color-neutral-900: #111111;
+
+  --color-success-500: #2e7d32;
+  --color-warning-500: #ed6c02;
+  --color-error-500: #d32f2f;
+
+  --color-telegram-500: #229ed9;
+  --color-telegram-700: #0f6fa8;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --font-mm: var(--font-noto-myanmar), "Noto Sans Myanmar", sans-serif;
+  --font-price: var(--font-inter), Inter, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-neutral-0);
+    color: var(--color-neutral-900);
+    font-family: var(--font-mm);
+    line-height: 1.5;
+    /* Burmese has no spaces between words inside a phrase; allow breaks
+       anywhere so long compounds never widen the layout past the viewport. */
+    overflow-wrap: anywhere;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-telegram-700);
+    outline-offset: 2px;
+  }
+}
+
+@utility price {
+  font-family: var(--font-price);
+  font-variant-numeric: tabular-nums;
+}
