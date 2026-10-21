@@ -1,8 +1,8 @@
 # implemented.md — What Is Actually Done
 
-**Updated:** 2026-10-20
-**Phase:** M2–M3 mock build — storefront, API, admin, tracking run locally on mock data
-**Next:** swap in real townships, bot token, catalog + photography; then deploy (M1/M4)
+**Updated:** 2026-10-21
+**Phase:** M2–M3 mock build — storefront, API, admin, tracking, Telegram bot run locally on mock data
+**Next:** swap in real townships and catalog; deploy the API for a permanent webhook URL (M1/M4)
 
 ---
 
@@ -27,7 +27,7 @@
 ### API — endpoints
 - Public: `GET /api/config`, `/categories`, `/products` (filter + sort + `q`), `/products/{slug}`, `/products/{slug}/size-chart`, `/townships`, `POST /orders`, `GET /orders/{number}/{token}`
 - Admin JSON (bearer token): `GET /admin/orders`, `/admin/orders/{id}`, `PATCH /admin/orders/{id}/status`, `POST /admin/orders/{id}/shipment`, `GET /admin/metrics`
-- Telegram webhook: `/start`, `/start product_{id}`, `/status ZW-…`, `/help` — replies are logged until a real bot token is supplied; the full 12-step flow is still M3 work
+- Telegram webhook: full conversational COD order flow (see below); `/start`, `/shop`, `/status ZW-…`, `/cancel`, `/help`, `/id`
 
 ### Core logic
 - `OrderStateMachine`: explicit transition matrix, timestamps per state, `order_events` audit row, invalid transitions → `422`
@@ -37,6 +37,18 @@
 - Stock decremented inside the order transaction with `lockForUpdate`; over-quantity → `422` naming the size
 - Rate limiters isolated by name: `api` 300/min (reads), `orders` 10/min, `tracking` 60/min. Inline `throttle:x,y` rules shared one counter per IP and blocked checkout when server-side rendering warmed the read cache — fixed
 - Order number derived from the primary key (`ZW-` + 6 digits), portable across SQLite and Postgres
+
+### Telegram bot
+- Webhook `POST /api/telegram/webhook` verifies `X-Telegram-Bot-Api-Secret-Token` against `TELEGRAM_WEBHOOK_SECRET`, always answers `200` so Telegram does not retry a handled update
+- Conversation state in `telegram_sessions` (one row per chat, 2-hour expiry): product → size/colour → name → phone → township → address → landmark → confirm
+- Township picker lists only active townships in the same Yangon → Mandalay → Naypyidaw → rest order as the site; typing a township name filters the list
+- Phone normalises `+959…` to `09…` and enforces the same `^09[0-9]{7,9}$` rule as checkout
+- Confirming creates a real order through `OrderCreator`, the service now shared with the web checkout, so pricing, stock locks, customer upsert, payment row and audit event are identical; orders are tagged `placed_via = telegram`
+- Double-tapping **Confirm** cannot duplicate an order: the session moves to `creating` before the transaction starts
+- Success reply carries the order number, COD total, 1–3 day estimate and a signed tracking link; `/status ZW-…` issues a fresh link
+- Optional admin alert goes to `TELEGRAM_ADMIN_CHAT_ID` when set; `/id` reveals the chat id
+- `TelegramClient` logs failed API calls with the Bot API description instead of throwing, so a delivery failure never breaks the webhook
+- `TELEGRAM_CA_BUNDLE` passes an explicit CA file to Guzzle for local development behind a TLS-inspecting proxy (PHP's bundled roots do not include it); empty in production
 
 ### Admin (Blade)
 - `/admin/orders` list with status filter and search, `/admin/orders/{id}` detail, `/admin/metrics`
@@ -58,7 +70,7 @@
 
 ### Verification
 - `npm run build` — 13 routes, TypeScript clean
-- `php artisan test` — 13 passing / 58 assertions (`OrderApiTest`: creation + fee snapshot, free-delivery threshold, idempotent replay, stock rejection, inactive township, valid/tampered/expired tracking, admin auth, invalid transition, COD paid on delivery)
+- `php artisan test` — 20 passing / 104 assertions (`OrderApiTest` 11 + `TelegramBotTest` 7 + `ExampleTest` 2; Telegram covers secret rejection, catalogue, deep link, end-to-end COD order, double-tap protection, invalid phone, cancel)
 - `vendor/bin/pint --dirty` clean
 - End-to-end in Chrome at 390 × 844: home → PDP → cart (2 lines) → checkout → `ZW-000001` → success → public tracking, in Burmese and English
 - API smoke: `201` create, replay `200`, `422` invalid transition, `403` bad token, `401` admin, `429` throttle
@@ -78,7 +90,7 @@
 | Order number | `ZW-000123`, derived from the primary key (no sequence) |
 | Tracking | Stateless HMAC token in the path, 90 days, `no-referrer` |
 | Admin | Laravel Blade, HTTP Basic, list + detail only |
-| Bot flow | 12 steps including address (webhook stubs only for now) |
+| Bot flow | 7-step chat order + confirm; township picker; real COD order via shared `OrderCreator` |
 | Analytics | DB-computed business metrics + Plausible |
 | Stack | Next.js 16 / React 19 / Tailwind 4 / Laravel 13 / PHP 8.4 |
 | Images | Local SVG mock now; Supabase Storage `products` bucket later |
@@ -87,7 +99,8 @@
 
 ## Not Done Yet
 
-- Full 12-step Telegram order flow, notifications, admin alerts (M3)
+- Permanent webhook host — the bot currently uses a `localtunnel` URL that changes when the tunnel restarts; deploy or use a named tunnel
+- Admin order alerts — code path ready, needs `TELEGRAM_ADMIN_CHAT_ID`
 - Real KBZPay/Wave prepay — disabled at launch via config, radios shown disabled
 - Plausible, Sentry, uptime monitoring
 - Deploy: Supabase (Postgres + Storage), Railway, Vercel; queue worker
@@ -100,14 +113,14 @@
 |---|---|---|
 | Townships | 41 rows across 14 regions | Courier-served list + real fee tiers |
 | Products | 8 products, 64 variants, local SVGs | Real catalog + photography |
-| Telegram bot | `@zaywear_mock_bot` | Real bot token + username |
+| Telegram bot | `@zaywear_alerts_bot` (`8828017102`), live token | Rename to `ZayWear` in BotFather if it should read as the shop, or keep it for alerts |
 | Contact | `09 000 000 000`, Sanchaung address | Real phone and address |
 | eComReg | "pending registration" | Registration number |
 
 ## Blocked On Founder
 
 1. Courier partner + served-township list with fee tiers
-2. Telegram bot token and username
-3. Product catalog, prices, stock, and photography
-4. Domain and eComReg application
-5. Whether prepay (KBZPay/Wave) ships at launch
+2. Product catalog, prices, stock, and photography
+3. Domain and eComReg application
+4. Whether prepay (KBZPay/Wave) ships at launch
+5. A permanent HTTPS host for the webhook (deploy, or a named Cloudflare tunnel)

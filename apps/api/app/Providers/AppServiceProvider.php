@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\TelegramClient;
 use App\Services\TrackingToken;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(TrackingToken::class, fn () => TrackingToken::fromConfig());
+        $this->app->bind(TelegramClient::class, fn () => TelegramClient::fromConfig());
     }
 
     /**
