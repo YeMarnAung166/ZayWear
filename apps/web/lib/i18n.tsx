@@ -97,6 +97,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = window.localStorage.getItem("zw_locale");
     if (stored === "my" || stored === "en") {
+      // Reading persisted UI state after mount keeps SSR and client markup in sync.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocaleState(stored);
       document.documentElement.lang = stored === "my" ? "my" : "en";
     }

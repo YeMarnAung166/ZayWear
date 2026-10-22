@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Setting;
 use App\Models\TelegramSession;
 use App\Models\Township;
 use Illuminate\Support\Carbon;
@@ -40,6 +41,7 @@ class TelegramBot
         private readonly TelegramClient $client,
         private readonly OrderCreator $orders,
         private readonly OrderPricing $pricing,
+        private readonly OrderStateMachine $stateMachine,
         private readonly TrackingToken $tokens,
     ) {}
 
@@ -69,12 +71,24 @@ class TelegramBot
         $messageId = (int) ($callback['message']['message_id'] ?? 0);
         $data = (string) ($callback['data'] ?? '');
 
-        if ($callbackId !== '') {
-            $this->client->answerCallbackQuery($callbackId);
-        }
-
         if ($chatId === 0) {
             return;
+        }
+
+        if (str_starts_with($data, 'adm:')) {
+            $this->handleAdminCallback(
+                $callbackId,
+                $chatId,
+                $messageId,
+                $data,
+                (string) ($callback['message']['text'] ?? ''),
+            );
+
+            return;
+        }
+
+        if ($callbackId !== '') {
+            $this->client->answerCallbackQuery($callbackId);
         }
 
         $session = $this->session($chatId);
@@ -89,6 +103,7 @@ class TelegramBot
             match ($action) {
                 'p' => $this->selectProduct($session, (int) $value),
                 'v' => $this->selectVariant($session, (int) $value),
+                'q' => $this->selectQuantity($session, $state, (int) $value),
                 't' => $this->selectTownship($session, (int) $value),
                 'back' => $this->sendProducts($chatId),
                 'ok' => $this->placeOrder($session, $state),
@@ -97,6 +112,67 @@ class TelegramBot
             };
         } catch (ValidationException $exception) {
             $this->client->sendMessage($chatId, $this->firstError($exception));
+        }
+    }
+
+    /**
+     * Confirm / cancel straight from the admin alert. Only the configured
+     * admin chat may act; everyone else is rejected without touching the order.
+     */
+    private function handleAdminCallback(
+        string $callbackId,
+        int $chatId,
+        int $messageId,
+        string $data,
+        string $originalText,
+    ): void {
+        $adminChatId = (string) config('shop.telegram_admin_chat_id');
+
+        $answer = function (string $text) use ($callbackId): void {
+            if ($callbackId !== '') {
+                $this->client->answerCallbackQuery($callbackId, $text);
+            }
+        };
+
+        if ($adminChatId === '' || (string) $chatId !== $adminChatId) {
+            $answer('Not allowed.');
+
+            return;
+        }
+
+        [, $action, $id] = array_pad(explode(':', $data, 3), 3, '');
+        $order = Order::query()->find((int) $id);
+
+        if (! $order) {
+            $answer('Order not found.');
+
+            return;
+        }
+
+        try {
+            match ($action) {
+                'confirm' => $this->stateMachine->transition($order, Order::STATUS_CONFIRMED, 'admin'),
+                'cancel' => $this->stateMachine->transition($order, Order::STATUS_CANCELLED, 'admin', 'Cancelled from Telegram'),
+                default => throw ValidationException::withMessages(['action' => ['Unknown action.']]),
+            };
+        } catch (ValidationException $exception) {
+            $answer($this->firstError($exception));
+
+            return;
+        }
+
+        $order->refresh();
+
+        $answer("{$order->order_number}: {$order->status}");
+
+        if ($messageId > 0) {
+            $this->client->editMessageText(
+                $chatId,
+                $messageId,
+                ($originalText !== '' ? $originalText : "Order {$order->order_number}")
+                ."\n\n→ {$order->status}",
+                ['inline_keyboard' => []],
+            );
         }
     }
 
@@ -125,6 +201,7 @@ class TelegramBot
 
         try {
             match ($state['step'] ?? 'idle') {
+                'qty' => $this->saveQuantity($session, $state, $text),
                 'name' => $this->saveName($session, $state, $text),
                 'phone' => $this->savePhone($session, $state, $text),
                 'township' => $this->searchTownship($chatId, $text),
@@ -147,7 +224,8 @@ class TelegramBot
 
         match ($command) {
             '/start' => $this->start($chatId, (string) $argument),
-            '/shop' => $this->sendProducts($chatId),
+            '/order', '/shop' => $this->sendProducts($chatId),
+            '/contact' => $this->contact($chatId),
             '/cancel' => $this->cancel($this->session($chatId)),
             '/status' => $this->status($chatId, (string) $argument),
             '/id' => $this->client->sendMessage($chatId, "Chat ID: {$chatId}"),
@@ -157,8 +235,27 @@ class TelegramBot
 
     private function start(int $chatId, string $argument): void
     {
-        if (str_starts_with($argument, 'product_')) {
-            $this->selectProduct($this->session($chatId), (int) substr($argument, strlen('product_')));
+        if (preg_match('/^product_(\d+)(?:_size_([A-Za-z0-9]+))?$/', $argument, $matches)) {
+            $productId = (int) $matches[1];
+            $size = $matches[2] ?? null;
+
+            if ($size !== null) {
+                $variant = ProductVariant::query()
+                    ->where('product_id', $productId)
+                    ->where('size', $size)
+                    ->where('is_active', true)
+                    ->where('stock_qty', '>', 0)
+                    ->orderBy('id')
+                    ->first();
+
+                if ($variant) {
+                    $this->selectVariant($this->session($chatId), $variant->id);
+
+                    return;
+                }
+            }
+
+            $this->selectProduct($this->session($chatId), $productId);
 
             return;
         }
@@ -194,6 +291,24 @@ class TelegramBot
         ]])->values()->all();
 
         $this->client->sendMessage($chatId, 'ပစ္စည်း ရွေးပါ။', ['inline_keyboard' => $rows]);
+    }
+
+    private function contact(int $chatId): void
+    {
+        $support = (string) Setting::get('support_telegram', '');
+        $frontend = rtrim((string) config('shop.frontend_url'), '/');
+
+        $lines = ['ဆက်သွယ်ရန်', ''];
+
+        if ($support !== '') {
+            $lines[] = "Telegram — {$support}";
+        }
+
+        $lines[] = "ဝဘ်ဆိုက် — {$frontend}/contact";
+        $lines[] = '';
+        $lines[] = 'အော်ဒါ အခြေအနေ — /status ZW-000123 4567';
+
+        $this->client->sendMessage($chatId, implode("\n", $lines));
     }
 
     private function selectProduct(TelegramSession $session, int $productId): void
@@ -241,15 +356,85 @@ class TelegramBot
         }
 
         $this->save($session, [
-            'step' => 'name',
+            'step' => 'qty',
             'product_id' => $variant->product_id,
             'variant_id' => $variant->id,
+            'qty' => 1,
         ]);
+
+        $this->sendQuantityPrompt($session->chat_id, $variant);
+    }
+
+    private function sendQuantityPrompt(int $chatId, ProductVariant $variant): void
+    {
+        $max = min($variant->stock_qty, 20);
+        $buttons = [];
+
+        foreach (range(1, min($max, 5)) as $quantity) {
+            $buttons[] = ['text' => (string) $quantity, 'callback_data' => 'q:'.$quantity];
+        }
+
+        $note = $max > 5 ? "\n5 ထက်ပို လိုပါက နံပါတ် ရိုက်ပါ။" : '';
+
+        $this->client->sendMessage(
+            $chatId,
+            "{$variant->product->name_mm} ({$variant->size} · {$variant->color})\n"
+            ."လက်ကျန် — {$variant->stock_qty}\n\n"
+            .'အရေအတွက် ရွေးပါ။'.$note,
+            ['inline_keyboard' => [$buttons]],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function selectQuantity(TelegramSession $session, array $state, int $quantity): void
+    {
+        $this->applyQuantity($session, $state, $quantity);
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function saveQuantity(TelegramSession $session, array $state, string $text): void
+    {
+        if (! preg_match('/^\d+$/', trim($text))) {
+            throw ValidationException::withMessages([
+                'qty' => 'အရေအတွက်ကို ဂဏန်းဖြင့် ရိုက်ပါ။',
+            ]);
+        }
+
+        $this->applyQuantity($session, $state, (int) trim($text));
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function applyQuantity(TelegramSession $session, array $state, int $quantity): void
+    {
+        $variant = ProductVariant::query()->with('product')->find($state['variant_id'] ?? 0);
+
+        if (! $variant) {
+            throw ValidationException::withMessages([
+                'qty' => 'အရွယ်အစား ရွေးချယ်မှု မတွေ့ပါ။ /start ဖြင့် ပြန်စပါ။',
+            ]);
+        }
+
+        $max = min($variant->stock_qty, 20);
+
+        if ($quantity < 1 || $quantity > $max) {
+            throw ValidationException::withMessages([
+                'qty' => "အရေအတွက် ၁ မှ {$max} အတွင်း ရွေးပါ။",
+            ]);
+        }
+
+        $state['qty'] = $quantity;
+        $state['step'] = 'name';
+        $this->save($session, $state);
 
         $this->client->sendMessage(
             $session->chat_id,
-            "{$variant->product->name_mm} ({$variant->size} · {$variant->color})\n\n"
-            .'အမည် အပြည့်အစုံ ရိုက်ပါ။',
+            "အရေအတွက် — {$quantity}\n\nအမည် အပြည့်အစုံ ရိုက်ပါ။",
         );
     }
 
@@ -426,6 +611,7 @@ class TelegramBot
     {
         $variant = ProductVariant::query()->with('product')->find($state['variant_id'] ?? 0);
         $township = Township::query()->find($state['township_id'] ?? 0);
+        $quantity = (int) ($state['qty'] ?? 1);
 
         if (! $variant || ! $township) {
             $this->client->sendMessage($session->chat_id, 'အချက်အလက် ပျောက်နေပါသည်။ /start ဖြင့် ပြန်စပါ။');
@@ -433,12 +619,13 @@ class TelegramBot
             return;
         }
 
-        $quote = $this->pricing->quote([['variant' => $variant, 'qty' => 1]], $township);
+        $quote = $this->pricing->quote([['variant' => $variant, 'qty' => $quantity]], $township);
 
         $lines = [
             'အော်ဒါ အတည်ပြုပါ',
             '',
             'ပစ္စည်း — '.$variant->product->name_mm." ({$variant->size} · {$variant->color})",
+            "အရေအတွက် — {$quantity}",
             'ဈေးနှုန်း — '.number_format($quote['subtotal_mmk']).' MMK',
             'ပို့ဆောင်ခ — '.($quote['delivery_fee_mmk'] === 0 ? 'အခမဲ့' : number_format($quote['delivery_fee_mmk']).' MMK'),
             'စုစုပေါင်း — '.number_format($quote['total_mmk']).' MMK (COD)',
@@ -478,6 +665,8 @@ class TelegramBot
         $state['step'] = 'creating';
         $this->save($session, $state);
 
+        $quantity = max(1, (int) ($state['qty'] ?? 1));
+
         try {
             $order = $this->orders->create([
                 'customer' => [
@@ -489,7 +678,7 @@ class TelegramBot
                 'landmark' => (string) $state['landmark'],
                 'payment_method' => 'cod',
                 'items' => [
-                    ['variant_id' => (int) $state['variant_id'], 'qty' => 1],
+                    ['variant_id' => (int) $state['variant_id'], 'qty' => $quantity],
                 ],
             ], 'tg-'.$session->chat_id.'-'.$session->id.'-'.Carbon::now()->timestamp, 'telegram');
         } catch (ValidationException $exception) {
@@ -528,28 +717,53 @@ class TelegramBot
             return;
         }
 
+        $items = $order->items
+            ->map(fn ($item): string => "• {$item->product_name_mm} ({$item->size} · {$item->color}) × {$item->qty}")
+            ->implode("\n");
+
         $this->client->sendMessage(
             $adminChatId,
-            "🛒 အော်ဒါအသစ် {$order->order_number}\n"
-            .'ပမာဏ — '.number_format($order->total_mmk)." MMK\n"
-            .'နံပါတ် — '.$order->customer?->phone,
+            "🛒 အော်ဒါအသစ် {$order->order_number}\n\n"
+            ."{$order->customer?->name} — {$order->customer?->phone}\n"
+            ."{$order->township?->name_mm}\n"
+            ."{$order->address_line}\n"
+            ."မှတ်တိုင် — {$order->landmark}\n\n"
+            ."{$items}\n\n"
+            .'စုစုပေါင်း — '.number_format($order->total_mmk).' MMK (COD)',
+            ['inline_keyboard' => [
+                [
+                    ['text' => '✅ အတည်ပြု', 'callback_data' => 'adm:confirm:'.$order->id],
+                    ['text' => '❌ ပယ်ဖျက်', 'callback_data' => 'adm:cancel:'.$order->id],
+                ],
+                [
+                    ['text' => '📄 အော်ဒါ ကြည့်ရန်', 'url' => url('/admin/orders/'.$order->id)],
+                ],
+            ]],
         );
     }
 
-    private function status(int $chatId, string $orderNumber): void
+    /**
+     * Status lookup requires the last four digits of the order's phone number,
+     * because order numbers are sequential and otherwise enumerable.
+     */
+    private function status(int $chatId, string $argument): void
     {
-        $orderNumber = strtoupper(trim($orderNumber));
-
-        if ($orderNumber === '') {
-            $this->client->sendMessage($chatId, 'ဥပမာ — /status ZW-000123');
+        if (! preg_match('/^(ZW-\d{6})\s+(\d{4})$/', strtoupper(trim($argument)), $matches)) {
+            $this->client->sendMessage(
+                $chatId,
+                "ဖုန်းနံပါတ် နောက်ဆုံး ၄ လုံး ထည့်ပါ။\nဥပမာ — /status ZW-000123 4567",
+            );
 
             return;
         }
 
-        $order = Order::query()->where('order_number', $orderNumber)->first();
+        $order = Order::query()
+            ->with('customer')
+            ->where('order_number', $matches[1])
+            ->first();
 
-        if (! $order) {
-            $this->client->sendMessage($chatId, 'အော်ဒါနံပါတ် မတွေ့ပါ။');
+        if (! $order || ! $order->customer || ! str_ends_with((string) $order->customer->phone, $matches[2])) {
+            $this->client->sendMessage($chatId, 'အော်ဒါနံပါတ် သို့မဟုတ် ဖုန်းနံပါတ် မမှန်ပါ။');
 
             return;
         }
@@ -617,7 +831,8 @@ class TelegramBot
         return "ZayWear အကူအညီ\n\n"
             ."/start — အော်ဒါ စတင်ရန်\n"
             ."/shop — ပစ္စည်းများ ကြည့်ရန်\n"
-            ."/status ZW-000123 — အော်ဒါ အခြေအနေ\n"
+            ."/status ZW-000123 4567 — အော်ဒါ အခြေအနေ\n"
+            ."/contact — ဆက်သွယ်ရန်\n"
             ."/cancel — လက်ရှိ အော်ဒါ ပယ်ဖျက်ရန်\n"
             .'/help — အကူအညီ';
     }

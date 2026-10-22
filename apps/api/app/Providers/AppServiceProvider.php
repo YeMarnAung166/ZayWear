@@ -33,5 +33,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('orders', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
 
         RateLimiter::for('tracking', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
+
+        // Basic-auth brute force protection for the Blade admin and admin JSON.
+        RateLimiter::for('admin', fn (Request $request) => Limit::perMinute(30)->by($request->ip()));
     }
 }

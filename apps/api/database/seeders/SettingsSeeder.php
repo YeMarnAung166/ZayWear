@@ -16,7 +16,8 @@ class SettingsSeeder extends Seeder
             'kbzpay_enabled' => false,
             'wave_enabled' => false,
             'return_window_days' => 7,
-            'support_telegram' => '@zaywear_support',
+            // Empty until the founder creates a support account; the site hides the link when blank.
+            'support_telegram' => '',
             'order_prefix' => 'ZW',
         ];
 

@@ -6,10 +6,21 @@ export const imageUrl = (path: string): string => {
   return `${base}/${path}`;
 };
 
-export const telegramLink = (bot: string, productId?: number): string =>
-  productId
-    ? `https://t.me/${bot}?start=product_${productId}`
-    : `https://t.me/${bot}`;
+export const telegramLink = (
+  bot: string,
+  productId?: number,
+  size?: string | null,
+): string => {
+  if (!productId) {
+    return `https://t.me/${bot}`;
+  }
+
+  const payload = size
+    ? `product_${productId}_size_${size}`
+    : `product_${productId}`;
+
+  return `https://t.me/${bot}?start=${payload}`;
+};
 
 export const errorMessage = (errors: unknown): string => {
   if (errors && typeof errors === "object") {

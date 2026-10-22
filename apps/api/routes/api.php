@@ -24,7 +24,7 @@ Route::middleware('throttle:api')->group(function () {
 
 Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
 
-Route::middleware(EnsureAdminToken::class)->prefix('admin')->group(function () {
+Route::middleware([EnsureAdminToken::class, 'throttle:admin'])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminOrderController::class, 'index']);
     Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
     Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);

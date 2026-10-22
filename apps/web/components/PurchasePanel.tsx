@@ -201,7 +201,7 @@ export function PurchasePanel({
 
       <div className="space-y-2">
         <a
-          href={telegramLink(telegramBot, product.id)}
+          href={telegramLink(telegramBot, product.id, size)}
           target="_blank"
           rel="noreferrer"
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-telegram-700 px-4 text-sm font-semibold text-neutral-0"

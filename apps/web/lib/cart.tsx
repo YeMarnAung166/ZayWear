@@ -46,6 +46,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
+        // Reading persisted cart state after mount keeps SSR and client markup in sync.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLines(JSON.parse(raw) as CartLine[]);
       }
     } catch {

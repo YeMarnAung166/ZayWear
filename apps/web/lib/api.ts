@@ -12,6 +12,13 @@ import type {
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api";
 
+/**
+ * Mock data is only a local-development convenience. Production builds must
+ * leave NEXT_PUBLIC_USE_MOCK unset: otherwise an API outage would quietly
+ * serve placeholder products whose variant ids cannot be ordered.
+ */
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
+
 async function get<T>(path: string): Promise<T | null> {
   try {
     const response = await fetch(`${API_URL}${path}`, {
@@ -35,12 +42,12 @@ export async function getConfig(): Promise<ShopConfig> {
 
 export async function getCategories(): Promise<Category[]> {
   const result = await get<{ data: Category[] }>("/categories");
-  return result?.data ?? mockCategories;
+  return result?.data ?? (USE_MOCK ? mockCategories : []);
 }
 
 export async function getTownships(): Promise<Township[]> {
   const result = await get<{ data: Township[] }>("/townships");
-  return result?.data ?? mockTownships;
+  return result?.data ?? (USE_MOCK ? mockTownships : []);
 }
 
 export async function getProducts(query: {
@@ -59,6 +66,10 @@ export async function getProducts(query: {
 
   if (result) {
     return result.data;
+  }
+
+  if (!USE_MOCK) {
+    return [];
   }
 
   return mockProducts
@@ -82,7 +93,16 @@ export async function getProducts(query: {
 
 export async function getProduct(slug: string): Promise<Product | null> {
   const result = await get<{ data: Product }>(`/products/${slug}`);
-  return result?.data ?? mockProducts.find((product) => product.slug === slug) ?? null;
+
+  if (result) {
+    return result.data;
+  }
+
+  if (!USE_MOCK) {
+    return null;
+  }
+
+  return mockProducts.find((product) => product.slug === slug) ?? null;
 }
 
 export async function getSizeChart(slug: string): Promise<SizeChart | null> {

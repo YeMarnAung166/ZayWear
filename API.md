@@ -1,0 +1,190 @@
+# API.md — ZayWear API
+
+**Base URL:** `https://<api-host>/api` (local: `http://127.0.0.1:8000/api`)
+**Format:** JSON in, JSON out. Send `Accept: application/json`.
+**Auth:** public endpoints are open; admin endpoints require a bearer token; the Telegram webhook requires a secret header.
+
+---
+
+## 1. Conventions
+
+| Topic | Behaviour |
+|---|---|
+| CORS | Only origins in `CORS_ALLOWED_ORIGINS` (comma-separated). The storefront posts orders from the browser, so the Vercel origin must be listed. |
+| Rate limits | See the table below. Exceeding one returns `429` with `Retry-After`. |
+| Validation errors | `422` with `{ "message": "...", "errors": { "field": ["..."] } }` |
+| Not found | `404` with `{ "message": "..." }` |
+| Tracking responses | Send `Referrer-Policy: no-referrer` so the token never leaks in a `Referer` header. |
+
+| Limiter | Applies to | Budget |
+|---|---|---|
+| `api` | All public reads + webhook | 300/min per IP |
+| `orders` | `POST /orders` | 10/min per IP |
+| `tracking` | `GET /orders/{number}/{token}` | 60/min per IP |
+| `admin` | Admin JSON **and** the Blade admin | 30/min per IP |
+
+Rate limiters are named in `app/Providers/AppServiceProvider.php`. Do not use inline `throttle:x,y` — it shares one counter per IP and will lock checkout out during server-side rendering.
+
+---
+
+## 2. Public endpoints
+
+### `GET /config`
+
+Storefront feature flags and links.
+
+```json
+{
+  "currency": "MMK",
+  "free_delivery_threshold_mmk": 80000,
+  "cod_enabled": true,
+  "kbzpay_enabled": false,
+  "wave_enabled": false,
+  "return_window_days": 7,
+  "support_telegram": "",
+  "telegram_bot": "zaywear_alerts_bot"
+}
+```
+
+### `GET /categories`
+
+```json
+{ "data": [{ "id": 1, "slug": "men", "name_mm": "အမျိုးသား", "name_en": "Men", "sort_order": 1 }] }
+```
+
+### `GET /products`
+
+Query: `category` (slug), `featured=1`, `q` (searches Burmese + English names), `sort` (`price_asc` | `price_desc` | default newest).
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "slug": "everyday-tee",
+      "name_mm": "…",
+      "name_en": "Everyday Tee",
+      "category": { "id": 1, "slug": "men", "name_mm": "…", "name_en": "Men" },
+      "base_price_mmk": 15000,
+      "price_mmk": 15000,
+      "is_featured": true,
+      "image_url": "/mock/tee.svg",
+      "variants": [
+        { "id": 3, "size": "M", "color": "Black", "stock_qty": 4, "price_mmk": 15000 }
+      ]
+    }
+  ]
+}
+```
+
+`variants` only includes active, in-stock combinations.
+
+### `GET /products/{slug}`
+
+Single product, same shape as an item above. `404` when missing or inactive.
+
+### `GET /products/{slug}/size-chart`
+
+```json
+{ "data": { "unit": "cm", "rows": [{ "size": "M", "chest_cm": 100, "length_cm": 70 }] } }
+```
+
+`404` when the product has no chart.
+
+### `GET /townships`
+
+Only active, courier-served townships.
+
+```json
+{ "data": [{ "id": 6, "region": "Yangon", "name_mm": "ဗဟန်း", "name_en": "Bahan", "delivery_fee_mmk": 1500 }] }
+```
+
+### `POST /orders`
+
+Creates a COD order. Send `Idempotency-Key: <uuid>`: replaying the same key returns the original order with `200` instead of `201`, and a concurrent duplicate cannot create a second order.
+
+```json
+{
+  "customer": { "name": "Thiri Aung", "phone": "09771234567" },
+  "township_id": 6,
+  "address_line": "No 45, Inya Road, Bahan",
+  "landmark": "Near Bahan market",
+  "note": "",
+  "payment_method": "cod",
+  "items": [{ "variant_id": 3, "qty": 2 }]
+}
+```
+
+Rules enforced server-side:
+
+- Prices, delivery fee, and free-delivery threshold are computed by the API; client prices are ignored.
+- `qty >= 1`; stock is checked under `lockForUpdate` and decremented in the same transaction.
+- `payment_method` must be enabled in settings. V1 only enables `cod`.
+- Phone is normalised to `09…` and must match `^09[0-9]{7,9}$`.
+- Township must be active.
+
+`201 Created` (or `200` on idempotent replay):
+
+```json
+{
+  "data": { "order_number": "ZW-000123", "status": "pending", "payment_status": "unpaid", "total_mmk": 31500, "…": "…" },
+  "tracking": {
+    "token": "…",
+    "path": "/order/ZW-000123/…"
+  }
+}
+```
+
+Errors: `422` validation, `429` rate limit, `404` unknown township/variant.
+
+### `GET /orders/{orderNumber}/{token}`
+
+Public, signed tracking. The token is an HMAC over the order number with a 90-day expiry; it is not stored.
+
+`200` returns `{ "data": { …order, items, events } }` with masked customer phone.
+`403` for a bad or expired token (identical message either way).
+`404` for an unknown order number.
+
+---
+
+## 3. Admin JSON
+
+Header: `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401`. Rate limited to 30/min.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/admin/orders` | `status`, `from`, `to` (dates), `q` (order number or phone), paginated 50 |
+| `GET` | `/admin/orders/{id}` | Full order with customer, township, items, events, shipment, payments |
+| `PATCH` | `/admin/orders/{id}/status` | `{ "status": "confirmed" }`; optional `reason`, `refusal_reason` |
+| `POST` | `/admin/orders/{id}/shipment` | `{ "carrier": "…", "tracking_number": "…" }` |
+| `GET` | `/admin/metrics` | Orders/day, refusal rate, median delivery hours, revenue |
+
+Status values: `pending`, `confirmed`, `packed`, `shipped`, `delivered`, `cancelled`, `refused`, `returned`.
+
+Invalid transitions return `422` (for example `delivered → pending`). A COD order becomes `payment_status = paid` when it reaches `delivered`.
+
+---
+
+## 4. Telegram webhook
+
+`POST /api/telegram/webhook`
+
+Requires `X-Telegram-Bot-Api-Secret-Token: <TELEGRAM_WEBHOOK_SECRET>`. Wrong or missing → `401`.
+
+Always answers `200` after a handled update so Telegram does not retry. See `TELEGRAM.md` for the conversation itself.
+
+---
+
+## 5. Local smoke test
+
+```bash
+curl -s http://127.0.0.1:8000/api/config
+
+curl -s -X POST http://127.0.0.1:8000/api/orders \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Idempotency-Key: smoke-1' \
+  -d '{"customer":{"name":"Test","phone":"09771234567"},"township_id":6,"address_line":"No 1, Test Road","landmark":"Test market","payment_method":"cod","items":[{"variant_id":1,"qty":1}]}'
+```
+
+After repeated order tests the IP hits the 10/min limit. Clear it with `php artisan cache:clear`.

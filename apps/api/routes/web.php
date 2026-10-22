@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/admin/orders');
 
-Route::middleware(EnsureAdminPassword::class)->prefix('admin')->group(function () {
+Route::middleware(['throttle:admin', EnsureAdminPassword::class])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminController::class, 'index'])->name('admin.orders.index');
     Route::get('/orders/{order}', [AdminController::class, 'show'])->name('admin.orders.show');
     Route::post('/orders/{order}/status', [AdminController::class, 'updateStatus'])->name('admin.orders.status');

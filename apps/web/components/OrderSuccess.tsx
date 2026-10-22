@@ -52,6 +52,8 @@ export function OrderSuccess({ orderNumber }: { orderNumber: string }) {
       if (raw) {
         const parsed = JSON.parse(raw) as Snapshot;
         if (parsed.order_number === orderNumber) {
+          // Reading the order snapshot after mount keeps SSR and client markup in sync.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setSnapshot(parsed);
         }
       }

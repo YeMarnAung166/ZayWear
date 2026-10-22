@@ -36,8 +36,8 @@ export const mockConfig: ShopConfig = {
   kbzpay_enabled: false,
   wave_enabled: false,
   return_window_days: 7,
-  support_telegram: "@zaywear_support",
-  telegram_bot: "zaywear_mock_bot",
+  support_telegram: "",
+  telegram_bot: "zaywear_alerts_bot",
 };
 
 export const mockTownships: Township[] = [

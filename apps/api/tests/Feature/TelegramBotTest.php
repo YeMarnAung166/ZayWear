@@ -15,6 +15,8 @@ class TelegramBotTest extends TestCase
 
     private const CHAT_ID = 555000111;
 
+    private const ADMIN_CHAT_ID = 999888777;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -57,6 +59,17 @@ class TelegramBotTest extends TestCase
             && $this->keyboardContains($request['reply_markup'] ?? [], 'v:'.$variant->id));
     }
 
+    public function test_a_size_deep_link_skips_straight_to_quantity(): void
+    {
+        $variant = $this->variantWithStock(5);
+
+        $this->sendText("/start product_{$variant->product_id}_size_{$variant->size}");
+
+        $this->assertStringContainsString('အရေအတွက် ရွေးပါ', $this->lastMessage());
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && $this->keyboardContains($request['reply_markup'] ?? [], 'q:1'));
+    }
+
     public function test_it_places_a_cod_order_through_the_chat(): void
     {
         $variant = $this->variantWithStock(5);
@@ -64,8 +77,8 @@ class TelegramBotTest extends TestCase
         $stockBefore = $variant->stock_qty;
         $unitPrice = $variant->product->base_price_mmk + $variant->price_delta_mmk;
 
-        $this->sendText('/start product_'.$variant->product_id);
-        $this->press('v:'.$variant->id);
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
         $this->sendText('Thiri Aung');
         $this->sendText('09771234567');
         $this->press('t:'.$township->id);
@@ -74,13 +87,14 @@ class TelegramBotTest extends TestCase
         $this->press('ok');
 
         $order = Order::query()->sole();
+        $fee = $unitPrice >= 80000 ? 0 : 1500;
 
         $this->assertSame('telegram', $order->placed_via);
         $this->assertSame(Order::STATUS_PENDING, $order->status);
         $this->assertSame('cod', $order->payment_method);
         $this->assertSame($unitPrice, $order->subtotal_mmk);
-        $this->assertSame(1500, $order->delivery_fee_mmk);
-        $this->assertSame($unitPrice + 1500, $order->total_mmk);
+        $this->assertSame($fee, $order->delivery_fee_mmk);
+        $this->assertSame($unitPrice + $fee, $order->total_mmk);
         $this->assertSame($stockBefore - 1, $variant->fresh()->stock_qty);
         $this->assertSame('09771234567', $order->customer->phone);
         $this->assertSame(1, $order->items()->count());
@@ -90,13 +104,33 @@ class TelegramBotTest extends TestCase
             && str_contains((string) $request['text'], $order->order_number));
     }
 
+    public function test_it_orders_more_than_one_item(): void
+    {
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:2');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+        $this->press('ok');
+
+        $order = Order::query()->sole();
+
+        $this->assertSame(2, $order->items()->first()->qty);
+        $this->assertSame(3, $variant->fresh()->stock_qty);
+    }
+
     public function test_a_double_tap_on_confirm_does_not_create_two_orders(): void
     {
         $variant = $this->variantWithStock(5);
         $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
 
-        $this->sendText('/start product_'.$variant->product_id);
-        $this->press('v:'.$variant->id);
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
         $this->sendText('Thiri Aung');
         $this->sendText('09771234567');
         $this->press('t:'.$township->id);
@@ -114,13 +148,90 @@ class TelegramBotTest extends TestCase
 
         $this->sendText('/start product_'.$variant->product_id);
         $this->press('v:'.$variant->id);
+        $this->press('q:1');
         $this->sendText('Thiri Aung');
         $this->sendText('12345');
 
         $this->assertSame(0, Order::query()->count());
+        $this->assertStringContainsString('ဖုန်းနံပါတ် မမှန်ပါ', $this->lastMessage());
+    }
+
+    public function test_status_requires_the_last_four_phone_digits(): void
+    {
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+        $this->press('ok');
+
+        $order = Order::query()->sole();
+
+        $this->sendText('/status '.$order->order_number);
+        $this->assertStringContainsString('နောက်ဆုံး ၄ လုံး', $this->lastMessage());
+
+        $this->sendText('/status '.$order->order_number.' 0000');
+        $this->assertStringContainsString('မမှန်ပါ', $this->lastMessage());
+
+        $this->sendText('/status '.$order->order_number.' 4567');
+        $this->assertStringContainsString($order->order_number, $this->lastMessage());
+        $this->assertStringContainsString('/order/', $this->lastMessage());
+    }
+
+    public function test_the_admin_alert_can_confirm_an_order(): void
+    {
+        config(['shop.telegram_admin_chat_id' => (string) self::ADMIN_CHAT_ID]);
+
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+        $this->press('ok');
+
+        $order = Order::query()->sole();
 
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
-            && str_contains((string) $request['text'], 'ဖုန်းနံပါတ် မမှန်ပါ'));
+            && (string) $request['chat_id'] === (string) self::ADMIN_CHAT_ID
+            && $this->keyboardContains($request['reply_markup'] ?? [], 'adm:confirm:'.$order->id));
+
+        $this->press('adm:confirm:'.$order->id, self::ADMIN_CHAT_ID);
+
+        $this->assertSame(Order::STATUS_CONFIRMED, $order->fresh()->status);
+        $this->assertNotNull($order->fresh()->confirmed_at);
+    }
+
+    public function test_a_customer_chat_cannot_confirm_an_order_from_the_admin_alert(): void
+    {
+        config(['shop.telegram_admin_chat_id' => (string) self::ADMIN_CHAT_ID]);
+
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+        $this->press('ok');
+
+        $order = Order::query()->sole();
+
+        $this->press('adm:confirm:'.$order->id, self::CHAT_ID);
+
+        $this->assertSame(Order::STATUS_PENDING, $order->fresh()->status);
     }
 
     public function test_cancel_resets_the_session(): void
@@ -138,6 +249,15 @@ class TelegramBotTest extends TestCase
         $this->assertSame(0, Order::query()->count());
     }
 
+    /**
+     * Open the product and tap its first size, landing on the quantity step.
+     */
+    private function startAtQuantity(ProductVariant $variant): void
+    {
+        $this->sendText('/start product_'.$variant->product_id);
+        $this->press('v:'.$variant->id);
+    }
+
     private function sendText(string $text, int $updateId = 1): void
     {
         $this->update([
@@ -150,16 +270,16 @@ class TelegramBotTest extends TestCase
         ]);
     }
 
-    private function press(string $data, int $updateId = 1): void
+    private function press(string $data, int $chatId = self::CHAT_ID, int $updateId = 1): void
     {
         $this->update([
             'update_id' => $updateId,
             'callback_query' => [
                 'id' => 'callback-'.$updateId,
-                'from' => ['id' => self::CHAT_ID],
+                'from' => ['id' => $chatId],
                 'message' => [
                     'message_id' => $updateId,
-                    'chat' => ['id' => self::CHAT_ID],
+                    'chat' => ['id' => $chatId],
                     'text' => 'previous',
                 ],
                 'data' => $data,
@@ -175,6 +295,17 @@ class TelegramBotTest extends TestCase
         $this->postJson('/api/telegram/webhook', $payload, [
             'X-Telegram-Bot-Api-Secret-Token' => 'test-secret',
         ])->assertOk();
+    }
+
+    private function lastMessage(): string
+    {
+        $messages = collect(Http::recorded())
+            ->map(fn ($pair) => $pair[0])
+            ->filter(fn ($request): bool => str_contains($request->url(), 'sendMessage'))
+            ->map(fn ($request): string => (string) $request['text'])
+            ->values();
+
+        return (string) $messages->last();
     }
 
     /**

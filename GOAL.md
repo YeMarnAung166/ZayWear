@@ -4,7 +4,7 @@
 **Version:** 1.0
 **Status:** Active
 **Owner:** Solo developer-founder
-**Last updated:** [date]
+**Last updated:** 2026-10-21
 
 ---
 
@@ -99,8 +99,8 @@ The full product, over 12–24 months, includes:
 | 6 months | Repeat customers | ≥ 10% of buyers |
 | 6 months | Median delivery time | ≤ 7 days |
 | 12 months | Monthly orders | ≥ 200 |
-| 12 months | Monthly revenue | [target] |
-| 12 months | Customer acquisition cost | < [target] |
+| 12 months | Monthly revenue | TBD (founder) |
+| 12 months | Customer acquisition cost | < TBD (founder) |
 
 ---
 
@@ -156,4 +156,4 @@ See `V1.md` for the detailed v1 scope and `BACKLOG.md` for prioritization.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0 | [date] | Initial goal document |
+| 1.0 | 2026-10-20 | Initial goal document |

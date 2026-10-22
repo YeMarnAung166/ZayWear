@@ -55,4 +55,16 @@
     <div style="margin-top: 16px;">
         {{ $orders->links('pagination::simple-default') }}
     </div>
+
+    <p style="margin-top: 12px; font-size: 12px; color: #666;">
+        Refreshes every 30 seconds while this tab is visible.
+    </p>
+
+    <script>
+        window.setInterval(function () {
+            if (document.visibilityState === 'visible') {
+                window.location.reload();
+            }
+        }, 30000);
+    </script>
 @endsection
