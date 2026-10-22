@@ -136,77 +136,86 @@ php artisan cache:clear
 
 ## 3. Deploy checklist
 
-Nothing here can be done until the hosting accounts and domain exist. Order matters.
+Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apache vhost, PHP ini, start script), `apps/api/railway.json`, `apps/web/vercel.json`, both `.env.production.example` files, and `scripts/backup-db.ps1`, `restore-db.ps1`, `smoke-test.ps1`.
 
-### 3.1 Supabase (Postgres + Storage)
+### 3.1 Supabase (database)
 
-1. Create the project, copy the pooler connection string.
-2. Use `DB_CONNECTION=pgsql`, `DB_SSLMODE=require`.
-3. Create a public Storage bucket for product images (later; V1 uses local SVGs).
-4. Run `php artisan migrate --force` once from the API host.
+1. Create the project (Singapore region).
+2. **Connect** → copy the **session pooler** details: host, port `5432`, user `postgres.<ref>`, password, database `postgres`. Keep `DB_SSLMODE=require`.
+3. No local migration needed: the first Railway deploy runs `php artisan migrate --force`.
+4. Store the session-pooler URL locally as `SUPABASE_DB_URL` for backups. Never commit it.
+5. The transaction pooler (`6543`) is optional later; session mode is what migrations, `pg_dump` and `pg_restore` need.
 
 ### 3.2 Railway (API)
 
-Environment:
-
-```
-APP_ENV=production
-APP_KEY=<php artisan key:generate --show>
-APP_URL=https://<api-host>
-FRONTEND_URL=https://<web-host>
-CORS_ALLOWED_ORIGINS=https://<web-host>
-DB_CONNECTION=pgsql
-DB_HOST=... DB_PORT=5432 DB_DATABASE=... DB_USERNAME=... DB_PASSWORD=... DB_SSLMODE=require
-ADMIN_TOKEN=<random 32+ chars>
-ADMIN_PASSWORD=<strong password>
-ORDER_TOKEN_SECRET=<random 32+ chars>
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_BOT_USERNAME=zaywear_alerts_bot
-TELEGRAM_WEBHOOK_SECRET=<random 32+ chars>
-TELEGRAM_ADMIN_CHAT_ID=...
-QUEUE_CONNECTION=database
-SESSION_DRIVER=database
-CACHE_STORE=database
-SENTRY_DSN=...
-```
-
-Then:
-
-1. `php artisan migrate --force`
-2. `php artisan db:seed --class=SettingsSeeder --force`
-3. Import townships with `--deactivate-missing`
-4. Load the real catalog and images
-5. Add the scheduler: `* * * * * cd /app && php artisan schedule:run >> /dev/null 2>&1`
-6. Add a queue worker if `QUEUE_CONNECTION=database`
+1. New project → **Deploy from GitHub** → set the service root directory to `apps/api`. Railway reads `railway.json` and builds the `Dockerfile`.
+2. Add the variables from `apps/api/.env.production.example`:
+   - `APP_KEY` ← `php artisan key:generate --show`
+   - `ADMIN_PASSWORD`, `ADMIN_TOKEN`, `ORDER_TOKEN_SECRET` ← new random 64-char values (not the local defaults)
+   - `DB_*` from Supabase, `DB_SSLMODE=require`
+   - `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` ← the Vercel domain (fill after 3.3)
+   - `TELEGRAM_*` ← the current token/secret (rotate first if it ever leaked)
+3. Deploy. The pre-deploy command migrates; the healthcheck is `/api/config`, which also proves the DB connection.
+4. Seed base data **once**:
+   ```powershell
+   cd apps/api
+   railway link
+   railway run php artisan db:seed --force
+   ```
+   This creates settings, townships, categories, products and size charts. Never run `DemoOrderSeeder` in production.
+5. Do not add a queue worker (`QUEUE_CONNECTION=sync`). The session-prune schedule is optional housekeeping; the bot already ignores expired sessions.
 
 ### 3.3 Vercel (web)
 
-Set **before** the first build (Next inlines `NEXT_PUBLIC_*`):
-
-```
-NEXT_PUBLIC_API_URL=https://<api-host>/api
-NEXT_PUBLIC_IMAGE_BASE=https://<storage-host>/products   # or /mock until real images
-NEXT_PUBLIC_USE_MOCK=            # must stay empty
-```
+1. Import the repo, root directory `apps/web`, framework Next.js.
+2. Set the variables from `apps/web/.env.production.example` **before the first build**:
+   - `NEXT_PUBLIC_API_URL=https://<api>/api`
+   - `NEXT_PUBLIC_IMAGE_BASE=/mock` (switch to the CDN when real photos land)
+   - `NEXT_PUBLIC_USE_MOCK` unset — a production build fails if it is `1`
+3. Deploy, then put the production domain into Railway's `CORS_ALLOWED_ORIGINS` and `FRONTEND_URL` and redeploy the API.
+4. `apps/web/vercel.json` pins the Singapore region.
 
 ### 3.4 Telegram
 
-```bash
-curl "https://api.telegram.org/bot$TOKEN/setWebhook" \
-  -d "url=https://<api-host>/api/telegram/webhook" \
-  -d "secret_token=$SECRET"
+```powershell
+curl.exe -s -X POST "https://api.telegram.org/bot$TOKEN/setWebhook" --data-urlencode "url=https://<api>/api/telegram/webhook" --data-urlencode "secret_token=$SECRET" --data-urlencode "drop_pending_updates=true"
 ```
 
-Then delete the tunnel webhook by re-registering only the production URL, and confirm `getWebhookInfo` shows no `last_error_message`.
+Verify `getWebhookInfo` shows `pending=0` and no `last_error`, then send `/start`. Keep the localtunnel running until the production order test passes; only then stop it.
 
 ### 3.5 Final gates
 
-- Storefront loads with the production API; **no mock products** appear.
-- `POST /orders` from the production origin succeeds (CORS list correct).
-- Bot order creates a real order and the admin alert arrives with working buttons.
-- Admin Blade reachable with the password and not with the old one.
-- Tracking link opens from a phone and shows `no-referrer`.
-- `NEXT_PUBLIC_USE_MOCK` absent from the Vercel build.
+Run the smoke test:
+
+```powershell
+.\scripts\smoke-test.ps1 -ApiBase https://<api>/api -WebBase https://<web> -AdminPassword '<password>'
+```
+
+Then, by hand:
+
+- Place a real COD order from the Vercel site. Tracking link, admin detail, and Telegram alert must all work.
+- Place one order from the bot on your phone.
+- Confirm no mock products appear (`NEXT_PUBLIC_USE_MOCK` unset).
+- `getWebhookInfo` points at Railway, not the tunnel.
+
+### 3.6 Rollback
+
+Take a backup before every migration or data import:
+
+```powershell
+$env:SUPABASE_DB_URL = "postgresql://..."
+.\scripts\backup-db.ps1
+```
+
+| Failure | Rollback |
+|---|---|
+| Bad storefront deploy | Vercel → Deployments → previous deployment → **Promote to Production**. No data change. |
+| Bad API deploy | Railway → Deployments → previous build → **Redeploy**. If its migration already ran, treat it as a data incident below. |
+| Bad migration, import, or data | `php artisan down --secret=<token>` on the API → restore with `.\scripts\restore-db.ps1 -File .\backups\<file>.dump -Confirm` → smoke test → `php artisan up`. |
+| Bot broken after cutover | Point the webhook back at the tunnel and restore the previous token in `.env`/Railway. Rotate tokens only after production is verified. |
+
+`restore-db.ps1` runs `pg_restore --clean`, which drops objects. Never restore while orders are being written — put the API in maintenance mode first.
+
 
 ---
 
@@ -274,8 +283,10 @@ php artisan model:prune --model="App\Models\TelegramSession"
 
 ## 6. Backups
 
-- Supabase: enable daily backups before launch; test one restore into a scratch project.
-- Export orders weekly during the first month:
+- Before every migration, seed, or township import: `.\scripts\backup-db.ps1` (reads `SUPABASE_DB_URL`). Keep one copy off this machine.
+- Restore only deliberately: `.\scripts\restore-db.ps1 -File .\backups\<file>.dump -Confirm`, with the API in maintenance mode. Test one restore into a scratch project before launch.
+- Supabase keeps automated backups; confirm the retention on the chosen plan and never rely on them alone.
+- Export orders weekly in the first month:
   ```sql
   copy (select * from orders order by id) to stdout with csv header;
   ```

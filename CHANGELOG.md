@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## 0.4.0 — 2026-10-22
+
+Hosting preparation for Vercel + Railway + Supabase.
+
+- API production image (`Dockerfile`): PHP 8.4 + Apache, `pdo_pgsql`, opcache, runtime port from Railway, config/route/view caches built at boot
+- `railway.json`: Dockerfile builder, `php artisan migrate --force` pre-deploy, `/api/config` healthcheck (proves the DB)
+- Trusted proxies so HTTPS URLs and secure cookies work behind Railway
+- `vercel.json` with the Singapore region; production env templates for both apps
+- `scripts/backup-db.ps1`, `restore-db.ps1`, and `smoke-test.ps1` (10 checks, verified locally)
+- RUNBOOK §3 rewritten: real deploy steps plus a rollback table and pre-deploy backup rule
+
 ## 0.3.1 — 2026-10-22
 
 Localhost verification hardening.

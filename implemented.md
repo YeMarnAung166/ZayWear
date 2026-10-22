@@ -92,6 +92,14 @@
 - `RUNBOOK.md` §1.1 is a 13-step local verification checklist with expected results
 - Tests: `DemoOrderSeederTest` (3) covers every status, events, payments, shipments, tracking tokens, idempotency, and no-stock-change
 
+### Hosting preparation (2026-10-22)
+- `apps/api/Dockerfile` + `docker/`: PHP 8.4 Apache image with `pdo_pgsql`, intl, zip, opcache; Apache listens on Railway's `$PORT`; config/route/view caches are built at container start
+- `apps/api/railway.json`: Dockerfile builder, `preDeployCommand` runs `migrate --force`, healthcheck `/api/config` (DB-aware)
+- `bootstrap/app.php` trusts proxy headers so HTTPS URLs and secure session cookies work behind Railway
+- `apps/web/vercel.json` pins the Singapore region; `apps/api/.env.production.example` and `apps/web/.env.production.example` document every production variable (three secrets must not keep local defaults)
+- `scripts/backup-db.ps1`, `scripts/restore-db.ps1` (custom-format dumps, session pooler), `scripts/smoke-test.ps1` — 10 post-deploy checks, all passing against local
+- RUNBOOK §3 rewritten with the actual Railway/Vercel/Supabase steps and a rollback table; §6 references the backup scripts
+
 ### Verification
 - `npm run build` — 13 routes, TypeScript clean; `npm run lint` clean
 - `php artisan test` — 33 passing / 289 assertions (`OrderApiTest` 11 + `TelegramBotTest` 12 + `TownshipsImportTest` 5 + `DemoOrderSeederTest` 3 + `ExampleTest` 2)
