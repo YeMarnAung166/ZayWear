@@ -52,8 +52,16 @@
         </tbody>
     </table>
 
-    <div style="margin-top: 16px;">
-        {{ $orders->links('pagination::simple-default') }}
+    <div style="margin-top: 16px; display: flex; gap: 16px; align-items: center; font-size: 14px;">
+        @if ($orders->previousPageUrl())
+            <a href="{{ $orders->previousPageUrl() }}">&larr; Newer</a>
+        @endif
+
+        <span>Page {{ $orders->currentPage() }} of {{ $orders->lastPage() }} · {{ $orders->total() }} orders</span>
+
+        @if ($orders->nextPageUrl())
+            <a href="{{ $orders->nextPageUrl() }}">Older &rarr;</a>
+        @endif
     </div>
 
     <p style="margin-top: 12px; font-size: 12px; color: #666;">

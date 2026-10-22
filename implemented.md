@@ -1,6 +1,6 @@
 # implemented.md — What Is Actually Done
 
-**Updated:** 2026-10-21
+**Updated:** 2026-10-22
 **Phase:** M2–M3 mock build — storefront, API, admin, tracking, Telegram bot run locally on mock data
 **Next:** swap in real townships and catalog; deploy the API for a permanent webhook URL (M1/M4)
 
@@ -82,9 +82,18 @@
 - Contact page reads the bot handle from `/api/config` instead of a hardcoded mock bot
 - `npm run lint` made green (three localStorage hydration effects annotated for `react-hooks/set-state-in-effect`)
 
+### Localhost verification kit (2026-10-22)
+- `DemoOrderSeeder`: ten orders covering every status (2 delivered, 2 pending, one each of confirmed/packed/shipped/refused/returned/cancelled) with customers, items, payments, shipments, backdated timelines, and events; prints signed tracking URLs. Tagged `placed_via = demo`, idempotent, opt-in, never moves stock
+- `database/data/townships.example.csv`: nine-row template so `townships:import --dry-run` can be exercised without the courier file
+- Rate limits are env-tunable (`API_/ORDER_/TRACKING_/ADMIN_RATE_LIMIT_PER_MINUTE`); local `.env` raises the order limit to 120 so verification runs do not trip `429`, production default stays 10
+- `next.config.ts` fails a production build if `NEXT_PUBLIC_USE_MOCK=1` is baked in
+- Fixed the admin order list 500: Laravel 13 removed `pagination::simple-default`; replaced with self-contained newer/older links
+- `RUNBOOK.md` §1.1 is a 13-step local verification checklist with expected results
+- Tests: `DemoOrderSeederTest` (3) covers every status, events, payments, shipments, tracking tokens, idempotency, and no-stock-change
+
 ### Verification
 - `npm run build` — 13 routes, TypeScript clean; `npm run lint` clean
-- `php artisan test` — 30 passing / 176 assertions (`OrderApiTest` 11 + `TelegramBotTest` 12 + `TownshipsImportTest` 5 + `ExampleTest` 2)
+- `php artisan test` — 33 passing / 289 assertions (`OrderApiTest` 11 + `TelegramBotTest` 12 + `TownshipsImportTest` 5 + `DemoOrderSeederTest` 3 + `ExampleTest` 2)
 - Telegram tests cover secret rejection, catalogue, product and size deep links, end-to-end COD order, multi-quantity, double-tap protection, invalid phone, `/status` last-four matching, admin confirm, and rejection of a customer-chat confirm
 - `vendor/bin/pint --dirty` clean
 - End-to-end in Chrome at 390 × 844: home → PDP → cart (2 lines) → checkout → `ZW-000001` → success → public tracking, in Burmese and English

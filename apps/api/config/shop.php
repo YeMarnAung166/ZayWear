@@ -15,4 +15,15 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
     'image_base' => env('IMAGE_BASE', ''),
+
+    /*
+    | Requests per minute per IP. Raise the order limit locally so a checkout
+    | verification session does not trip the production spam guard.
+    */
+    'rate_limits' => [
+        'api' => (int) env('API_RATE_LIMIT_PER_MINUTE', 300),
+        'orders' => (int) env('ORDER_RATE_LIMIT_PER_MINUTE', 10),
+        'tracking' => (int) env('TRACKING_RATE_LIMIT_PER_MINUTE', 60),
+        'admin' => (int) env('ADMIN_RATE_LIMIT_PER_MINUTE', 30),
+    ],
 ];

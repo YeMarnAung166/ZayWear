@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## 0.3.1 — 2026-10-22
+
+Localhost verification hardening.
+
+- `DemoOrderSeeder`: ten backdated orders across every status, with events, payments, shipments, and printed tracking links; opt-in, idempotent, and stock-neutral
+- `database/data/townships.example.csv` for testing the importer without real data
+- Rate limits configurable per env; local order limit raised to 120/min
+- Production build now fails if `NEXT_PUBLIC_USE_MOCK=1`
+- Fixed the admin order list 500 caused by Laravel 13 removing `pagination::simple-default`
+- RUNBOOK §1.1 local verification checklist; tests now 33 / 289
+
 ## 0.3.0 — 2026-10-21
 
 Hardening and bot parity, still on mock data.
