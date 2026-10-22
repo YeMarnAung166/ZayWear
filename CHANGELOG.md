@@ -8,6 +8,7 @@ Localhost verification hardening.
 - `database/data/townships.example.csv` for testing the importer without real data
 - Rate limits configurable per env; local order limit raised to 120/min
 - Production build now fails if `NEXT_PUBLIC_USE_MOCK=1`
+- `allowedDevOrigins` allows `127.0.0.1` and the LAN IP, fixing inert buttons caused by Next 16 blocking client hydration off `localhost`
 - Fixed the admin order list 500 caused by Laravel 13 removing `pagination::simple-default`
 - RUNBOOK §1.1 local verification checklist; tests now 33 / 289
 

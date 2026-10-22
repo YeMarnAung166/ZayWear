@@ -87,6 +87,7 @@
 - `database/data/townships.example.csv`: nine-row template so `townships:import --dry-run` can be exercised without the courier file
 - Rate limits are env-tunable (`API_/ORDER_/TRACKING_/ADMIN_RATE_LIMIT_PER_MINUTE`); local `.env` raises the order limit to 120 so verification runs do not trip `429`, production default stays 10
 - `next.config.ts` fails a production build if `NEXT_PUBLIC_USE_MOCK=1` is baked in
+- `allowedDevOrigins: ["127.0.0.1", "192.168.1.17"]` so the storefront hydrates on `127.0.0.1` and the LAN IP; without it Next 16 renders the page but blocks the client, leaving every button inert (reported as "add to cart not working")
 - Fixed the admin order list 500: Laravel 13 removed `pagination::simple-default`; replaced with self-contained newer/older links
 - `RUNBOOK.md` §1.1 is a 13-step local verification checklist with expected results
 - Tests: `DemoOrderSeederTest` (3) covers every status, events, payments, shipments, tracking tokens, idempotency, and no-stock-change

@@ -72,6 +72,8 @@ The seeder prints ten orders covering every status plus signed tracking URLs.
 
 The local `.env` raises `ORDER_RATE_LIMIT_PER_MINUTE` to 120 so a verification run does not hit `429`; production stays at 10. If a limit is hit anyway, `php artisan cache:clear` resets counters.
 
+Use `localhost`, never `127.0.0.1`, in the browser: Next 16 only sends dev assets to allowed origins, and a blocked origin renders the page without hydrating it, so every button is inert. `apps/web/next.config.ts` already allows `127.0.0.1` and `192.168.1.17`; add the current LAN IP there for phone testing.
+
 ---
 
 ## 2. Data operations

@@ -9,6 +9,10 @@ if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_USE_MOCK ==
 }
 
 const nextConfig: NextConfig = {
+  // Next 16 blocks dev assets for origins other than localhost. Without this the
+  // page renders but React never hydrates on 127.0.0.1 or the LAN address, which
+  // makes every button (including Add to cart) inert. Add your LAN IP if it changes.
+  allowedDevOrigins: ["127.0.0.1", "192.168.1.17"],
   // Mock images are local SVGs served from /public/mock.
   // Swap to the Supabase CDN + built-in optimisation when real photos land.
   images: {
