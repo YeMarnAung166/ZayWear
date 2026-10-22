@@ -229,10 +229,23 @@ curl.exe -s -H "Authorization: Bearer $ADMIN_TOKEN" https://<api-host>/api/admin
 
 ### Rotate the Telegram token
 
+Do this whenever the token may have leaked, and rotate `TELEGRAM_WEBHOOK_SECRET` in the same pass.
+
 1. BotFather → `/revoke` → copy the new token.
-2. Update `TELEGRAM_BOT_TOKEN` in Railway (and local `.env`).
-3. Re-register the webhook with the new token; the secret does not change.
-4. Send `/start` and confirm `getWebhookInfo` is clean.
+2. Put it in `apps/api/.env` (`TELEGRAM_BOT_TOKEN=...`) and in Railway → Variables. Never commit it.
+3. Generate a new webhook secret (64 hex chars) and set `TELEGRAM_WEBHOOK_SECRET` in both places.
+4. `php artisan config:clear` locally; Railway restarts on its own.
+5. Re-register the webhook with the new secret:
+
+```powershell
+$token = (Get-Content apps/api/.env | Select-String '^TELEGRAM_BOT_TOKEN=').Line -replace '^TELEGRAM_BOT_TOKEN=', ''
+$secret = (Get-Content apps/api/.env | Select-String '^TELEGRAM_WEBHOOK_SECRET=').Line -replace '^TELEGRAM_WEBHOOK_SECRET=', ''
+curl.exe -s -X POST "https://api.telegram.org/bot$token/setWebhook" --data-urlencode "url=https://<api-host>/api/telegram/webhook" --data-urlencode "secret_token=$secret" --data-urlencode "drop_pending_updates=true"
+```
+
+6. Verify: `getWebhookInfo` shows the right URL, `pending=0`, no `last_error`; the endpoint answers `401` with a wrong secret header and `200` with the right one; `sendMessage` to the admin chat succeeds; send `/start` from your phone.
+
+Revoking invalidates outgoing calls immediately but leaves the webhook registered, so the bot keeps receiving updates and cannot answer until the new token is in `.env`.
 
 ### Prune bot sessions
 
