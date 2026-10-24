@@ -105,6 +105,7 @@ class TelegramBot
                 'v' => $this->selectVariant($session, (int) $value),
                 'q' => $this->selectQuantity($session, $state, (int) $value),
                 't' => $this->selectTownship($session, (int) $value),
+                'pm' => $this->selectPayment($session, $state, $value),
                 'back' => $this->sendProducts($chatId),
                 'ok' => $this->placeOrder($session, $state),
                 'cancel' => $this->cancel($session),
@@ -598,6 +599,40 @@ class TelegramBot
         }
 
         $state['landmark'] = $text;
+        $state['step'] = 'payment';
+        $this->save($session, $state);
+
+        $this->sendPaymentOptions($session);
+    }
+
+    /**
+     * Prepaid methods are advertised but not switchable-on yet: choosing one
+     * before the merchant integration exists would create an unpaid order.
+     */
+    private function sendPaymentOptions(TelegramSession $session): void
+    {
+        $this->client->sendMessage(
+            $session->chat_id,
+            "ငွေပေးချေမှု နည်းလမ်း ရွေးပါ။\n\n"
+            .'KBZPay / Wave Money — မကြာမီ ရနိုင်ပါမည်။',
+            ['inline_keyboard' => [[
+                ['text' => '💵 လက်ခံပြီး ပေးချေ (COD)', 'callback_data' => 'pm:cod'],
+            ]]],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function selectPayment(TelegramSession $session, array $state, string $method): void
+    {
+        if (($state['step'] ?? '') !== 'payment' || $method !== 'cod') {
+            throw ValidationException::withMessages([
+                'payment_method' => 'ဒီငွေပေးချေမှု နည်းလမ်းကို မရနိုင်သေးပါ။ COD ကို ရွေးပါ။',
+            ]);
+        }
+
+        $state['payment_method'] = 'cod';
         $state['step'] = 'confirm';
         $this->save($session, $state);
 
@@ -612,6 +647,7 @@ class TelegramBot
         $variant = ProductVariant::query()->with('product')->find($state['variant_id'] ?? 0);
         $township = Township::query()->find($state['township_id'] ?? 0);
         $quantity = (int) ($state['qty'] ?? 1);
+        $paymentMethod = strtoupper((string) ($state['payment_method'] ?? 'cod'));
 
         if (! $variant || ! $township) {
             $this->client->sendMessage($session->chat_id, 'အချက်အလက် ပျောက်နေပါသည်။ /start ဖြင့် ပြန်စပါ။');
@@ -628,8 +664,9 @@ class TelegramBot
             "အရေအတွက် — {$quantity}",
             'ဈေးနှုန်း — '.number_format($quote['subtotal_mmk']).' MMK',
             'ပို့ဆောင်ခ — '.($quote['delivery_fee_mmk'] === 0 ? 'အခမဲ့' : number_format($quote['delivery_fee_mmk']).' MMK'),
-            'စုစုပေါင်း — '.number_format($quote['total_mmk']).' MMK (COD)',
+            'စုစုပေါင်း — '.number_format($quote['total_mmk'])." MMK ({$paymentMethod})",
             '',
+            'ငွေပေးချေမှု — '.$paymentMethod,
             'အမည် — '.$state['name'],
             'ဖုန်း — '.$state['phone'],
             'မြို့နယ် — '.$township->name_mm,
@@ -676,7 +713,7 @@ class TelegramBot
                 'township_id' => (int) $state['township_id'],
                 'address_line' => (string) $state['address'],
                 'landmark' => (string) $state['landmark'],
-                'payment_method' => 'cod',
+                'payment_method' => (string) ($state['payment_method'] ?? 'cod'),
                 'items' => [
                     ['variant_id' => (int) $state['variant_id'], 'qty' => $quantity],
                 ],
@@ -700,7 +737,7 @@ class TelegramBot
             $session->chat_id,
             "အော်ဒါ ရရှိပါပြီ ✅\n\n"
             ."အော်ဒါနံပါတ် — {$order->order_number}\n"
-            .'စုစုပေါင်း — '.number_format($order->total_mmk)." MMK (COD)\n"
+            .'စုစုပေါင်း — '.number_format($order->total_mmk).' MMK ('.strtoupper($order->payment_method).")\n"
             ."ပို့ဆောင်ချိန် — ၁ မှ ၃ ရက်\n\n"
             .'အခြေအနေ ကြည့်ရန် — '.$trackingUrl."\n\n"
             .'ဖုန်းဖြင့် ဆက်သွယ်ပါမည်။ ကျေးဇူးတင်ပါတယ်။',
@@ -709,13 +746,15 @@ class TelegramBot
         $this->notifyAdmin($order);
     }
 
-    private function notifyAdmin(Order $order): void
+    public function notifyAdmin(Order $order): void
     {
         $adminChatId = (string) config('shop.telegram_admin_chat_id');
 
         if ($adminChatId === '') {
             return;
         }
+
+        $order->loadMissing(['customer', 'township', 'items']);
 
         $items = $order->items
             ->map(fn ($item): string => "• {$item->product_name_mm} ({$item->size} · {$item->color}) × {$item->qty}")
@@ -729,7 +768,7 @@ class TelegramBot
             ."{$order->address_line}\n"
             ."မှတ်တိုင် — {$order->landmark}\n\n"
             ."{$items}\n\n"
-            .'စုစုပေါင်း — '.number_format($order->total_mmk).' MMK (COD)',
+            .'စုစုပေါင်း — '.number_format($order->total_mmk).' MMK ('.strtoupper($order->payment_method).')',
             ['inline_keyboard' => [
                 [
                     ['text' => '✅ အတည်ပြု', 'callback_data' => 'adm:confirm:'.$order->id],

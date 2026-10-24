@@ -7,10 +7,13 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
 use App\Services\OrderCreator;
+use App\Services\TelegramBot;
 use App\Services\TrackingToken;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class OrderController extends Controller
 {
@@ -50,7 +53,31 @@ class OrderController extends Controller
             throw $exception;
         }
 
+        $this->notifyAdmin($order);
+
         return $this->respond($order->load(self::RELATIONS), $tokens, 201);
+    }
+
+    /**
+     * Tell the shop owner about a web order in the same chat that receives
+     * Telegram orders. Deferred so checkout never waits on the Bot API.
+     */
+    private function notifyAdmin(Order $order): void
+    {
+        if ((string) config('shop.telegram_admin_chat_id') === '') {
+            return;
+        }
+
+        defer(function () use ($order): void {
+            try {
+                app(TelegramBot::class)->notifyAdmin($order);
+            } catch (Throwable $exception) {
+                Log::warning('order.admin_alert.failed', [
+                    'order' => $order->order_number,
+                    'message' => $exception->getMessage(),
+                ]);
+            }
+        });
     }
 
     public function show(Request $request, string $orderNumber, string $token, TrackingToken $tokens): JsonResponse

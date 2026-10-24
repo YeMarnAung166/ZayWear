@@ -84,6 +84,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
 
         $order = Order::query()->sole();
@@ -104,6 +105,31 @@ class TelegramBotTest extends TestCase
             && str_contains((string) $request['text'], $order->order_number));
     }
 
+    public function test_the_payment_step_offers_cod_and_rejects_prepay(): void
+    {
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+
+        $this->assertStringContainsString('KBZPay', $this->lastMessage());
+
+        $this->press('pm:kbzpay');
+
+        $this->assertStringContainsString('မရနိုင်သေးပါ', $this->lastMessage());
+        $this->assertSame(0, Order::query()->count());
+
+        $this->press('pm:cod');
+
+        $this->assertStringContainsString('MMK (COD)', $this->lastMessage());
+    }
+
     public function test_it_orders_more_than_one_item(): void
     {
         $variant = $this->variantWithStock(5);
@@ -116,6 +142,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
 
         $order = Order::query()->sole();
@@ -136,6 +163,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
         $this->press('ok');
 
@@ -168,6 +196,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
 
         $order = Order::query()->sole();
@@ -197,6 +226,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
 
         $order = Order::query()->sole();
@@ -225,6 +255,7 @@ class TelegramBotTest extends TestCase
         $this->press('t:'.$township->id);
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
+        $this->press('pm:cod');
         $this->press('ok');
 
         $order = Order::query()->sole();

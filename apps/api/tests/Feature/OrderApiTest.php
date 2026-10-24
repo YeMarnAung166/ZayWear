@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Township;
 use App\Services\TrackingToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class OrderApiTest extends TestCase
@@ -51,6 +52,29 @@ class OrderApiTest extends TestCase
         $this->assertSame("/order/{$orderNumber}/{$response->json('tracking.token')}", $response->json('tracking.path'));
         $this->assertSame(1, Order::query()->count());
         $this->assertSame($stockBefore - 1, $variant->fresh()->stock_qty);
+    }
+
+    public function test_a_web_order_alerts_the_telegram_admin_chat(): void
+    {
+        config([
+            'shop.telegram_bot_token' => 'test-token',
+            'shop.telegram_admin_chat_id' => '999888777',
+        ]);
+
+        Http::fake();
+
+        $variant = $this->variantWithStock(3);
+        $township = $this->township('Bahan');
+
+        $response = $this->postJson('/api/orders', $this->payload($variant, $township));
+
+        $response->assertCreated();
+
+        $orderNumber = $response->json('data.order_number');
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && (string) $request['chat_id'] === '999888777'
+            && str_contains((string) $request['text'], $orderNumber));
     }
 
     public function test_delivery_is_free_once_the_subtotal_reaches_the_threshold(): void
