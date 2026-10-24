@@ -38,11 +38,15 @@ export function Footer({ telegramBot }: { telegramBot: string }) {
         </div>
 
         <div>
-          <p className="text-xs uppercase tracking-wide text-neutral-500">Payment</p>
+          <p className="text-xs text-neutral-500">{t("footer.payment")}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
             <span className="rounded-sm bg-success-500 px-2 py-1 text-neutral-0">COD</span>
-            <span className="rounded-sm bg-neutral-200 px-2 py-1">KBZPay</span>
-            <span className="rounded-sm bg-neutral-200 px-2 py-1">Wave</span>
+            <span className="rounded-sm bg-neutral-200 px-2 py-1">
+              KBZPay <span className="font-normal">({t("footer.comingSoon")})</span>
+            </span>
+            <span className="rounded-sm bg-neutral-200 px-2 py-1">
+              Wave <span className="font-normal">({t("footer.comingSoon")})</span>
+            </span>
           </div>
           <p className="mt-3 text-xs text-neutral-500">
             {new Date().getFullYear()} © ZayWear
