@@ -1,0 +1,25 @@
+name: Uptime
+
+on:
+  schedule:
+    # GitHub may delay scheduled runs by a few minutes; 15 minutes is enough
+    # resolution for a storefront that takes orders around the clock.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: API health
+        run: curl --fail --silent --show-error --max-time 20 https://zaywear-production.up.railway.app/up
+
+      - name: API catalogue
+        run: curl --fail --silent --show-error --max-time 20 https://zaywear-production.up.railway.app/api/config > /dev/null
+
+      - name: Storefront
+        run: curl --fail --silent --show-error --max-time 20 https://zay-wear.vercel.app > /dev/null

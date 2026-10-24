@@ -1,0 +1,40 @@
+name: Nightly database backup
+
+on:
+  schedule:
+    # 18:00 UTC = 00:30 Asia/Yangon.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the database secret
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL is not set. Add the Supabase session-pooler connection string (port 5432) as a repository secret."
+            exit 1
+          fi
+
+      - name: Dump and compress
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          pg_dump --no-owner --no-privileges --format=custom --file="zaywear-$stamp.dump" "$DB_URL"
+          gzip -9 "zaywear-$stamp.dump"
+          ls -lh zaywear-*.dump.gz
+
+      - name: Keep seven days of dumps
+        uses: actions/upload-artifact@v4
+        with:
+          name: zaywear-db-${{ github.run_id }}
+          path: zaywear-*.dump.gz
+          retention-days: 7

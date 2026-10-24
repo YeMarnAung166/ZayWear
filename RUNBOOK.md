@@ -278,6 +278,7 @@ php artisan model:prune --model="App\Models\TelegramSession"
 | Orders exist but no admin alert | `TELEGRAM_ADMIN_CHAT_ID` empty or bot not in the group | Send `/id`, update the env, redeploy |
 | Site shows placeholder products in production | `NEXT_PUBLIC_USE_MOCK=1` in the Vercel build | Remove it and rebuild |
 | Burmese text looks like `?????` in a terminal | Console encoding, not the data | Check with `curl` or the browser, not PowerShell `Get-Content` |
+| Sentry shows no events | DSN missing or the release never deployed | Check `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`, then `php artisan sentry:test` from a host that can reach Sentry |
 
 ---
 
@@ -286,6 +287,8 @@ php artisan model:prune --model="App\Models\TelegramSession"
 - Before every migration, seed, or township import: `.\scripts\backup-db.ps1` (reads `SUPABASE_DB_URL`). Keep one copy off this machine.
 - Restore only deliberately: `.\scripts\restore-db.ps1 -File .\backups\<file>.dump -Confirm`, with the API in maintenance mode. Test one restore into a scratch project before launch.
 - Supabase keeps automated backups; confirm the retention on the chosen plan and never rely on them alone.
+- GitHub Actions runs `Nightly database backup` at 18:00 UTC (00:30 Asia/Yangon) and keeps seven daily artifacts. Add the Supabase session-pooler URL (port 5432) as the repository secret `SUPABASE_DB_URL`.
+- GitHub Actions runs `Uptime` every 15 minutes against `/up`, `/api/config` and the storefront. A failed run emails the repository owner; add UptimeRobot/BetterStack on the same URLs if you want SMS.
 - Export orders weekly in the first month:
   ```sql
   copy (select * from orders order by id) to stdout with csv header;
