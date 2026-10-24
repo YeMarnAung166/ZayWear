@@ -10,7 +10,9 @@ import { getConfig } from "@/lib/api";
 
 const notoSansMyanmar = Noto_Sans_Myanmar({
   subsets: ["myanmar"],
-  weight: ["400", "500", "600", "700"],
+  // A single weight keeps the file at ~46 KB instead of the 150 KB variable
+  // font. Headings are synthesised bold by the browser.
+  weight: ["400"],
   variable: "--font-noto-myanmar",
   display: "swap",
 });
