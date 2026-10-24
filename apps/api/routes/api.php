@@ -11,12 +11,15 @@ use App\Http\Middleware\EnsureAdminToken;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('throttle:api')->group(function () {
-    Route::get('/categories', [CategoryController::class, 'index']);
-    Route::get('/products', [CatalogController::class, 'index']);
-    Route::get('/products/{slug}', [CatalogController::class, 'show']);
-    Route::get('/products/{slug}/size-chart', [CatalogController::class, 'sizeChart']);
-    Route::get('/townships', [TownshipController::class, 'index']);
-    Route::get('/config', [ConfigController::class, 'show']);
+    Route::middleware('cache.api:120')->group(function () {
+        Route::get('/categories', [CategoryController::class, 'index']);
+        Route::get('/products', [CatalogController::class, 'index']);
+        Route::get('/products/{slug}', [CatalogController::class, 'show']);
+        Route::get('/products/{slug}/size-chart', [CatalogController::class, 'sizeChart']);
+        Route::get('/townships', [TownshipController::class, 'index']);
+        Route::get('/config', [ConfigController::class, 'show']);
+    });
+
     Route::get('/orders/{orderNumber}/{token}', [OrderController::class, 'show'])
         ->middleware('throttle:tracking');
     Route::post('/telegram/webhook', [TelegramController::class, 'webhook']);
