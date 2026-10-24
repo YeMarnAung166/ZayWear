@@ -155,7 +155,7 @@ Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apa
    - `DB_*` from Supabase, `DB_SSLMODE=require`
    - `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` ← the Vercel domain (fill after 3.3)
    - `TELEGRAM_*` ← the current token/secret (rotate first if it ever leaked)
-3. Deploy. The pre-deploy command migrates; the healthcheck is `/api/config`, which also proves the DB connection.
+3. Deploy. The container runs `php artisan migrate --force` at start (see `docker/start.sh`) — Railway's config-as-code no longer applies `preDeployCommand` for this service, so boot-time migration is the source of truth. The healthcheck is `/api/config`, which also proves the DB connection.
 4. Seed base data **once**:
    ```powershell
    cd apps/api

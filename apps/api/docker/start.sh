@@ -17,6 +17,9 @@ echo "Enabled MPMs: ${MPMS:-none}"
 apache2ctl -t
 
 # Cache after the environment is present (the image is built without secrets).
+# Migrate first: Railway's config-as-code no longer applies preDeployCommand for
+# this service, so the container owns the schema step. It is idempotent.
+php artisan migrate --force
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
