@@ -1,6 +1,5 @@
 "use client";
 
-import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 import "./globals.css";
 
@@ -12,7 +11,11 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    // Loaded on demand: the error page is rare, so keep the SDK out of the
+    // initial bundle.
+    void import("@sentry/nextjs")
+      .then((Sentry) => Sentry.captureException(error))
+      .catch(() => {});
   }, [error]);
 
   return (

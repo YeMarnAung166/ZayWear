@@ -3,6 +3,7 @@ import { Noto_Sans_Myanmar } from "next/font/google";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { ClientErrorReporter } from "@/components/ClientErrorReporter";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { Providers } from "@/components/Providers";
 import { TelegramFab } from "@/components/TelegramFab";
@@ -34,6 +35,7 @@ export default async function RootLayout({
     <html lang="my" className={notoSansMyanmar.variable}>
       <body className="flex min-h-screen flex-col">
         <Providers>
+          <ClientErrorReporter />
           <OfflineBanner />
           <Header />
           <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6">{children}</main>
