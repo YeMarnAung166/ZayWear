@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { useI18n } from "@/lib/i18n";
-import { createOrder } from "@/lib/api";
+import { createOrder } from "@/lib/orders";
 import { digitsOnly, MMK } from "@/lib/format";
 import type { ShopConfig, Township } from "@/lib/types";
 

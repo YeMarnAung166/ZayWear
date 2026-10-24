@@ -19,6 +19,9 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+  // Prices only: let the critical Burmese font and the app bundle have the
+  // bandwidth first, then swap the numerals in.
+  preload: false,
 });
 
 export const metadata: Metadata = {
