@@ -27,3 +27,7 @@ backups/
 # Editor
 .idea/
 .vscode/
+
+# Vercel CLI (link metadata and the local OIDC token file)
+.vercel/
+.env.local

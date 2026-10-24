@@ -1,0 +1,6 @@
+# Vercel builds this monorepo with Root Directory = apps/web.
+# Keep the upload small: the Laravel API, its vendor tree, and local scripts
+# are not part of the frontend build.
+apps/api
+database
+scripts

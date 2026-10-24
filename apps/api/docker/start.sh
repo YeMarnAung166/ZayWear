@@ -24,4 +24,11 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+# The caches above are written as root while the container boots, but Apache
+# serves as www-data. BladeCompiler touches a compiled view on every render, so
+# root-owned files make the admin pages fail with:
+#   touch(): Utime failed: Operation not permitted
+# Hand the writable trees back to the runtime user before dropping privileges.
+chown -R www-data:www-data storage bootstrap/cache
+
 exec apache2-foreground
