@@ -221,6 +221,21 @@ class OrderApiTest extends TestCase
         $this->assertSame(5, $delivered->events()->count());
     }
 
+    public function test_metrics_break_down_refusal_reasons(): void
+    {
+        $refused = $this->placeOrder();
+        $refused->update([
+            'status' => Order::STATUS_REFUSED,
+            'refusal_reason' => 'wrong_size',
+        ]);
+
+        $this->placeOrder();
+
+        $this->getJson('/api/admin/metrics', $this->adminHeaders())
+            ->assertOk()
+            ->assertJsonPath('refusal_reasons_30d.wrong_size', 1);
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -15,6 +15,22 @@
     </div>
 
     <div class="card">
+        <h2 style="font-size: 16px; margin-top: 0;">Refusal reasons (30d)</h2>
+        @if ($refusalReasons->isEmpty())
+            <p>No refusals recorded.</p>
+        @else
+            <table>
+                <thead><tr><th>Reason</th><th>Orders</th></tr></thead>
+                <tbody>
+                @foreach ($refusalReasons as $reason => $count)
+                    <tr><td>{{ $reason }}</td><td>{{ $count }}</td></tr>
+                @endforeach
+                </tbody>
+            </table>
+        @endif
+    </div>
+
+    <div class="card">
         <h2 style="font-size: 16px; margin-top: 0;">By status</h2>
         <table>
             <thead><tr><th>Status</th><th>Orders</th></tr></thead>

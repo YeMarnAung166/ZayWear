@@ -109,6 +109,14 @@ class AdminController extends Controller
             'orders7d' => Order::query()->where('created_at', '>=', Carbon::now()->subDays(7))->count(),
             'orders30d' => Order::query()->where('created_at', '>=', $since)->count(),
             'refusalRate' => $denominator === 0 ? null : round($refused / $denominator * 100, 1),
+            'refusalReasons' => Order::query()
+                ->where('status', Order::STATUS_REFUSED)
+                ->where('created_at', '>=', $since)
+                ->selectRaw("coalesce(refusal_reason, 'unspecified') as reason, count(*) as total")
+                ->groupBy('reason')
+                ->orderByDesc('total')
+                ->pluck('total', 'reason')
+                ->map(fn ($total) => (int) $total),
             'medianDelivery' => $durations->isEmpty() ? null : round((float) $durations->median(), 1),
             'revenue30d' => (int) Order::query()
                 ->where('status', Order::STATUS_DELIVERED)
