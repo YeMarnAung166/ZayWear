@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_Myanmar } from "next/font/google";
+import { Noto_Sans_Myanmar } from "next/font/google";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -17,15 +17,6 @@ const notoSansMyanmar = Noto_Sans_Myanmar({
   display: "swap",
 });
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-  // Prices only: let the critical Burmese font and the app bundle have the
-  // bandwidth first, then swap the numerals in.
-  preload: false,
-});
-
 export const metadata: Metadata = {
   title: "ZayWear — Myanmar apparel",
   description:
@@ -40,7 +31,7 @@ export default async function RootLayout({
   const config = await getConfig();
 
   return (
-    <html lang="my" className={`${notoSansMyanmar.variable} ${inter.variable}`}>
+    <html lang="my" className={notoSansMyanmar.variable}>
       <body className="flex min-h-screen flex-col">
         <Providers>
           <OfflineBanner />
