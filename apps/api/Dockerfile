@@ -19,8 +19,13 @@ RUN apt-get update \
         intl \
         bcmath \
         opcache \
-    && a2enmod rewrite headers \
     && rm -rf /var/lib/apt/lists/*
+
+# mod_php only works with the prefork MPM. The base image normally ships prefork
+# alone, but some rebuilds leave mpm_event enabled too, which Apache rejects with
+# AH00534 "More than one MPM loaded" and the container crash-loops. Normalise it.
+RUN a2dismod -f mpm_event mpm_worker mpm_itk >/dev/null 2>&1 || true; \
+    a2enmod mpm_prefork rewrite headers
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -45,6 +50,9 @@ COPY docker/apache-vhost.conf /etc/apache2/sites-available/000-default.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/zz-zaywear.ini
 COPY docker/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
+
+# Fail the build (with the real Apache error) instead of crash-looping in production.
+RUN apache2ctl -t
 
 EXPOSE 8080
 
