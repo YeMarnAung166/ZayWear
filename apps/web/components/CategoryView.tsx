@@ -100,8 +100,8 @@ export function CategoryView({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-          {visible.map((product) => (
-            <ProductCard key={product.id} product={product} />
+          {visible.map((product, index) => (
+            <ProductCard key={product.id} product={product} priority={index === 0} />
           ))}
         </div>
       )}

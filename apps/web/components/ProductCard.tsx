@@ -6,7 +6,13 @@ import { useI18n } from "@/lib/i18n";
 import { imageUrl, MMK } from "@/lib/format";
 import type { Product } from "@/lib/types";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  priority = false,
+}: {
+  product: Product;
+  priority?: boolean;
+}) {
   const { pick } = useI18n();
   const image = product.images[0];
   const onSale =
@@ -25,6 +31,10 @@ export function ProductCard({ product }: { product: Product }) {
             alt={pick(image.alt_mm, image.alt_en)}
             fill
             sizes="(max-width: 768px) 50vw, 25vw"
+            // The first card is often the largest paint on mobile, so it must
+            // not wait for layout before the browser discovers it.
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             className="object-cover transition group-hover:scale-[1.02]"
           />
         ) : null}

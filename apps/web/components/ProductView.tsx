@@ -45,7 +45,8 @@ export function ProductView({
                 src={imageUrl(image.path)}
                 alt={pick(image.alt_mm, image.alt_en)}
                 fill
-                priority
+                loading="eager"
+                fetchPriority="high"
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="object-cover"
               />

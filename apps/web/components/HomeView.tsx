@@ -79,8 +79,8 @@ export function HomeView({
           </Link>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
-          {featured.map((product) => (
-            <ProductCard key={product.id} product={product} />
+          {featured.map((product, index) => (
+            <ProductCard key={product.id} product={product} priority={index === 0} />
           ))}
         </div>
       </section>
