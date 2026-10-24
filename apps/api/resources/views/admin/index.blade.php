@@ -65,7 +65,7 @@
     </div>
 
     <p style="margin-top: 12px; font-size: 12px; color: #666;">
-        Refreshes every 30 seconds while this tab is visible.
+        Refreshes every 5 seconds while this tab is visible.
     </p>
 
     <script>
@@ -73,6 +73,6 @@
             if (document.visibilityState === 'visible') {
                 window.location.reload();
             }
-        }, 30000);
+        }, 5000);
     </script>
 @endsection

@@ -22,7 +22,10 @@ const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "1";
 async function get<T>(path: string): Promise<T | null> {
   try {
     const response = await fetch(`${API_URL}${path}`, {
-      cache: "no-store",
+      // Catalogue data changes rarely and the API already caches for 120s.
+      // Revalidating the pages keeps them static (edge-cached) instead of
+      // hitting Railway + Postgres on every request.
+      next: { revalidate: 60 },
       headers: { Accept: "application/json" },
     });
 

@@ -1,6 +1,15 @@
 import { notFound } from "next/navigation";
 import { ProductView } from "@/components/ProductView";
-import { getConfig, getProduct, getSizeChart } from "@/lib/api";
+import { getConfig, getProduct, getProducts, getSizeChart } from "@/lib/api";
+
+// Static page, refreshed in the background every minute.
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  const products = await getProducts({});
+
+  return products.map((product) => ({ slug: product.slug }));
+}
 
 export default async function ProductPage({
   params,

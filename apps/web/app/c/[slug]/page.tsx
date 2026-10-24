@@ -2,6 +2,15 @@ import { notFound } from "next/navigation";
 import { CategoryView } from "@/components/CategoryView";
 import { getCategories, getProducts } from "@/lib/api";
 
+// Static page, refreshed in the background every minute.
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  const categories = await getCategories();
+
+  return categories.map((category) => ({ slug: category.slug }));
+}
+
 export default async function CategoryPage({
   params,
 }: {
