@@ -27,12 +27,6 @@ Route::middleware('throttle:api')->group(function () {
 
 Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
 
-Route::get('/_sentry-probe/{token}', function (string $token): never {
-    abort_unless(hash_equals('6f0c1a8e-3b7d-4c2a-9e51-8d4f2b6a7c93', $token), 404);
-
-    throw new RuntimeException('Sentry probe from Railway');
-});
-
 Route::middleware([EnsureAdminToken::class, 'throttle:admin'])->prefix('admin')->group(function () {
     Route::get('/orders', [AdminOrderController::class, 'index']);
     Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
