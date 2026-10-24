@@ -65,12 +65,14 @@
     </div>
 
     <p style="margin-top: 12px; font-size: 12px; color: #666;">
-        Refreshes every 5 seconds while this tab is visible.
+        Refreshes every 5 seconds while this tab is visible. Paused while a filter is focused.
     </p>
 
     <script>
         window.setInterval(function () {
-            if (document.visibilityState === 'visible') {
+            var typing = document.activeElement && document.activeElement.matches('input, select, textarea');
+
+            if (document.visibilityState === 'visible' && !typing) {
                 window.location.reload();
             }
         }, 5000);
