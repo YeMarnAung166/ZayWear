@@ -1,5 +1,12 @@
 # CHANGELOG.md
 
+## 0.6.1 — 2026-10-25
+
+Wishlist entry point in the header.
+
+- A heart icon next to the cart links to `/account/wishlist`, shows the saved count, and fills when the list is non-empty; guests land on login and come back to the wishlist
+- Tightened the mobile header gaps so the extra icon still fits at 375px
+
 ## 0.6.0 — 2026-10-25
 
 Wishlist (V2 A5).

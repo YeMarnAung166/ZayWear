@@ -3,17 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { HeartIcon } from "@/components/HeartIcon";
 import { useCart } from "@/lib/cart";
 import { useI18n } from "@/lib/i18n";
+import { useWishlist } from "@/lib/wishlist";
 
 export function Header() {
   const { t, locale, setLocale } = useI18n();
   const { count, hydrated } = useCart();
+  const { count: wishlistCount, status: wishlistStatus } = useWishlist();
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
 
   const badge = count === 0 ? "" : count > 9 ? "10+" : String(count);
+  const wishlistBadge =
+    wishlistCount === 0 ? "" : wishlistCount > 9 ? "10+" : String(wishlistCount);
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -59,13 +64,13 @@ export function Header() {
           />
         </form>
 
-        <div className="ml-auto flex items-center gap-2 md:ml-0">
+        <div className="ml-auto flex items-center gap-1 md:ml-0 md:gap-2">
           <div className="flex overflow-hidden rounded-md border border-neutral-200 text-xs font-semibold">
             <button
               type="button"
               onClick={() => setLocale("my")}
               aria-pressed={locale === "my"}
-              className={`px-2 py-1.5 ${locale === "my" ? "bg-primary-500 text-neutral-0" : "text-neutral-900"}`}
+              className={`px-1.5 py-1.5 md:px-2 ${locale === "my" ? "bg-primary-500 text-neutral-0" : "text-neutral-900"}`}
             >
               မြန်မာ
             </button>
@@ -73,7 +78,7 @@ export function Header() {
               type="button"
               onClick={() => setLocale("en")}
               aria-pressed={locale === "en"}
-              className={`px-2 py-1.5 ${locale === "en" ? "bg-primary-500 text-neutral-0" : "text-neutral-900"}`}
+              className={`px-1.5 py-1.5 md:px-2 ${locale === "en" ? "bg-primary-500 text-neutral-0" : "text-neutral-900"}`}
             >
               EN
             </button>
@@ -88,6 +93,19 @@ export function Header() {
               <circle cx="12" cy="8" r="3.2" />
               <path d="M5 20a7 7 0 0 1 14 0" strokeLinecap="round" />
             </svg>
+          </Link>
+
+          <Link
+            href="/account/wishlist"
+            className="relative flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium"
+            aria-label={`${t("nav.wishlist")} (${wishlistCount})`}
+          >
+            <HeartIcon filled={wishlistStatus === "ready" && wishlistCount > 0} />
+            {wishlistStatus === "ready" && wishlistBadge ? (
+              <span className="absolute right-0 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent-500 px-1 text-[11px] font-bold text-neutral-0">
+                {wishlistBadge}
+              </span>
+            ) : null}
           </Link>
 
           <Link

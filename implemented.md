@@ -107,6 +107,7 @@
 - Wishlist: `wishlist_items` unique per customer + product; four `/me/wishlist` endpoints; saves persist across sessions and logout/login
 - Hearts on cards and the PDP hydrate client-side from `/me/wishlist/ids`, keeping product pages static; guests are returned to the product after login
 - `/account/wishlist` supports move-to-cart (one unit): direct when a single variant is in stock, inline colour/size picker otherwise; the row is removed on success and a **View cart** notice stays on the page
+- The header has a wishlist heart with the saved count; guests are sent to login and returned to the wishlist
 - Inactive products stay saved but are hidden from both wishlist responses and return if reactivated
 
 ### Verification
