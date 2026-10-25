@@ -287,7 +287,7 @@ php artisan model:prune --model="App\Models\TelegramSession"
 - Before every migration, seed, or township import: `.\scripts\backup-db.ps1` (reads `SUPABASE_DB_URL`). Keep one copy off this machine.
 - Restore only deliberately: `.\scripts\restore-db.ps1 -File .\backups\<file>.dump -Confirm`, with the API in maintenance mode. Test one restore into a scratch project before launch.
 - Supabase keeps automated backups; confirm the retention on the chosen plan and never rely on them alone.
-- GitHub Actions runs `Nightly database backup` at 18:00 UTC (00:30 Asia/Yangon) and keeps seven daily artifacts. Add the Supabase session-pooler URL (port 5432) as the repository secret `SUPABASE_DB_URL`.
+- GitHub Actions runs `Nightly database backup` at 18:00 UTC (00:30 Asia/Yangon) and keeps seven daily artifacts. Add the Supabase session-pooler URL (port 5432) as the repository secret `SUPABASE_DB_URL`. The job installs the PostgreSQL 17 client because Supabase runs 17 and `pg_dump` refuses newer servers.
 - GitHub Actions runs `Uptime` every 15 minutes against `/up`, `/api/config` and the storefront. A failed run emails the repository owner; add UptimeRobot/BetterStack on the same URLs if you want SMS.
 - Export orders weekly in the first month:
   ```sql
