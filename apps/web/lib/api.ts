@@ -2,11 +2,11 @@ import { API_URL } from "./api-url";
 import { mockCategories, mockConfig, mockProducts, mockTownships } from "./mock-data";
 import type {
   Category,
-  Order,
   Product,
   ShopConfig,
   SizeChart,
   Township,
+  TrackingOrder,
 } from "./types";
 
 /**
@@ -112,7 +112,7 @@ export async function getSizeChart(slug: string): Promise<SizeChart | null> {
 export async function getOrder(
   orderNumber: string,
   token: string,
-): Promise<{ data: Order } | { error: string }> {
+): Promise<{ data: TrackingOrder } | { error: string }> {
   try {
     const response = await fetch(
       `${API_URL}/orders/${encodeURIComponent(orderNumber)}/${encodeURIComponent(token)}`,
@@ -127,7 +127,7 @@ export async function getOrder(
       return { error: "We could not load this order right now." };
     }
 
-    return (await response.json()) as { data: Order };
+    return (await response.json()) as { data: TrackingOrder };
   } catch {
     return { error: "We could not reach the server. Please try again." };
   }

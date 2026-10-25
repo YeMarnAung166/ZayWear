@@ -149,6 +149,34 @@ class OrderApiTest extends TestCase
             ->assertJsonPath('data.status', Order::STATUS_PENDING);
     }
 
+    public function test_tracking_returns_only_what_the_tracker_needs(): void
+    {
+        $order = $this->placeOrder();
+        $token = app(TrackingToken::class)->issue($order);
+
+        $response = $this->getJson("/api/orders/{$order->order_number}/{$token}")
+            ->assertOk()
+            ->assertHeader('Referrer-Policy', 'no-referrer')
+            ->assertJsonPath('data.order_number', $order->order_number)
+            ->assertJsonPath('data.status', Order::STATUS_PENDING)
+            ->assertJsonStructure([
+                'data' => [
+                    'order_number',
+                    'status',
+                    'events' => ['*' => ['to', 'at']],
+                    'shipment',
+                    'refusal_reason',
+                    'created_at',
+                ],
+            ]);
+
+        $data = $response->json('data');
+
+        foreach (['address_line', 'landmark', 'note', 'customer', 'items', 'subtotal_mmk', 'payment_status', 'payment_method'] as $field) {
+            $this->assertArrayNotHasKey($field, $data, "The public tracking payload must not include {$field}.");
+        }
+    }
+
     public function test_tracking_rejects_a_tampered_token(): void
     {
         $order = $this->placeOrder();

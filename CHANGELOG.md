@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## 0.5.3 — 2026-10-25
+
+The public tracking page and the account order page now have separate jobs.
+
+- `/order/{number}/{token}` is a tracker: status timeline with event times, courier, contact. Its API payload drops address, items, payment, and customer (`PublicOrderResource`), so forwarding the link cannot leak them
+- `/account/orders/{number}` is the receipt: items, totals, discount, payment, delivery address, plus reorder and return/exchange. The status is a compact pill with the latest event time and a link to the tracker
+- Shared status labels, tones, payment labels, and Yangon-pinned formatters moved into `lib/order-status.ts` and `lib/order-format.ts`
+- The account order page no longer repeats the full timeline or links to an identical page
+- Tests: 56 passing / 498 assertions
+
 ## 0.5.2 — 2026-10-25
 
 Tracking page polish, shared by the public signed link and the account order detail.

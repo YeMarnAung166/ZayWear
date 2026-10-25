@@ -145,7 +145,7 @@ Errors: `422` validation, `429` rate limit, `404` unknown township/variant.
 
 Public, signed tracking. The token is an HMAC over the order number with a 90-day expiry; it is not stored.
 
-`200` returns `{ "data": { …order, items, events } }` with masked customer phone.
+`200` returns `{ "data": { order_number, status, events, shipment, refusal_reason, created_at } }`. The payload is intentionally smaller than the account order: no address, items, payment, or customer, so a forwarded link cannot leak them.
 `403` for a bad or expired token (identical message either way).
 `404` for an unknown order number.
 

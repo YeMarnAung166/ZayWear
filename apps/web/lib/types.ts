@@ -111,6 +111,21 @@ export type Order = {
   delivered_at: string | null;
 };
 
+/** The public tracking payload is deliberately smaller than `Order`. */
+export type TrackingEvent = {
+  to: string;
+  at: string | null;
+};
+
+export type TrackingOrder = {
+  order_number: string;
+  status: string;
+  events?: TrackingEvent[];
+  shipment?: { carrier: string; tracking_number: string | null } | null;
+  refusal_reason: string | null;
+  created_at: string | null;
+};
+
 export type Paginated<T> = {
   data: T[];
   meta?: {

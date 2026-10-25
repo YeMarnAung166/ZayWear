@@ -6,33 +6,9 @@ import { useState } from "react";
 import { ReorderButton } from "@/components/ReorderButton";
 import { MMK } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { ORDER_STATUS_LABELS } from "@/lib/order-status";
+import { formatOrderDate } from "@/lib/order-format";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from "@/lib/order-status";
 import type { CustomerAccount, Order, Township } from "@/lib/types";
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  // Pinned to Yangon so the server and the browser render the same day; an
-  // unpinned locale flips the date near midnight and breaks hydration.
-  return new Date(value).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Yangon",
-  });
-}
-
-const STATUS_TONES: Record<string, string> = {
-  pending: "bg-warning-500/10 text-warning-500",
-  packed: "bg-warning-500/10 text-warning-500",
-  shipped: "bg-warning-500/10 text-warning-500",
-  delivered: "bg-success-500/10 text-success-500",
-  cancelled: "bg-error-500/10 text-error-500",
-  refused: "bg-error-500/10 text-error-500",
-  returned: "bg-neutral-50 text-neutral-500",
-};
 
 export function AccountDashboard({
   account,
@@ -221,10 +197,10 @@ export function AccountDashboard({
                           {order.order_number}
                         </Link>
                         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-                          <span>{formatDate(order.created_at)}</span>
+                          <span>{formatOrderDate(order.created_at) ?? "—"}</span>
                           <span
                             className={`rounded-sm px-2 py-0.5 text-xs font-medium ${
-                              STATUS_TONES[order.status] ?? "bg-neutral-50 text-neutral-500"
+                              ORDER_STATUS_TONES[order.status] ?? "bg-neutral-50 text-neutral-500"
                             }`}
                           >
                             {status ? pick(status.mm, status.en) : order.status}

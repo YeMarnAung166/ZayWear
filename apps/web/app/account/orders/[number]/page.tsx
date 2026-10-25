@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { OrderTracking } from "@/components/OrderTracking";
+import { OrderReceipt } from "@/components/OrderReceipt";
 import { ReorderButton } from "@/components/ReorderButton";
 import { getAccount, getAccountOrder } from "@/lib/account";
 
@@ -33,16 +33,18 @@ export default async function AccountOrderPage({
         ← အကောင့်သို့ / Back to account
       </Link>
 
-      <OrderTracking order={order} />
+      <OrderReceipt order={order} trackingPath={trackingPath} />
 
       <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-4">
         <ReorderButton orderNumber={order.order_number} />
-        <Link
-          href={trackingPath}
-          className="inline-flex min-h-11 items-center rounded-md border border-neutral-200 px-4 text-sm font-medium"
-        >
-          ပို့ဆောင်မှု လမ်းကြောင်း / Tracking
-        </Link>
+        {order.status === "delivered" ? (
+          <Link
+            href="/returns"
+            className="inline-flex min-h-11 items-center rounded-md border border-neutral-900 px-4 text-sm font-semibold"
+          >
+            ပြန်အမ်း / လဲလှယ်ရန် / Return or exchange
+          </Link>
+        ) : null}
       </div>
     </div>
   );

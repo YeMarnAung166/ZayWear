@@ -1,6 +1,11 @@
 import Link from "next/link";
-import { OrderTracking } from "@/components/OrderTracking";
+import { OrderTracker } from "@/components/OrderTracker";
 import { getOrder } from "@/lib/api";
+
+export const metadata = {
+  title: "အော်ဒါ လမ်းကြောင်း — ZayWear",
+  robots: { index: false, follow: false },
+};
 
 export default async function TrackingPage({
   params,
@@ -26,8 +31,8 @@ export default async function TrackingPage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <OrderTracking order={result.data} />
+    <div className="mx-auto max-w-xl">
+      <OrderTracker order={result.data} />
     </div>
   );
 }

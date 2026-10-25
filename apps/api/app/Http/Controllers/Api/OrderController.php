@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Resources\OrderResource;
+use App\Http\Resources\PublicOrderResource;
 use App\Models\Order;
 use App\Services\OrderCreator;
 use App\Services\TelegramBot;
@@ -84,7 +85,7 @@ class OrderController extends Controller
     {
         $order = Order::query()
             ->where('order_number', $orderNumber)
-            ->with(self::RELATIONS)
+            ->with(['events', 'shipment'])
             ->firstOrFail();
 
         if (! $tokens->verify($order, $token)) {
@@ -96,7 +97,7 @@ class OrderController extends Controller
         $request->attributes->set('referrer_policy', 'no-referrer');
 
         return response()
-            ->json(['data' => new OrderResource($order)])
+            ->json(['data' => new PublicOrderResource($order)])
             ->header('Referrer-Policy', 'no-referrer');
     }
 
