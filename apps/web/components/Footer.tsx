@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 
+// Placeholder until the eComReg certificate arrives. Replace before launch.
+const ECOMREG_NO = "00000000";
+
 export function Footer({ telegramBot }: { telegramBot: string }) {
   const { t } = useI18n();
 
@@ -18,7 +21,7 @@ export function Footer({ telegramBot }: { telegramBot: string }) {
             </a>
           </p>
           <p className="mt-3 text-xs text-neutral-500">
-            eComReg: <span className="font-medium">pending registration</span>
+            eComReg: <span className="font-medium">{ECOMREG_NO}</span>
           </p>
         </div>
 
