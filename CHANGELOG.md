@@ -1,5 +1,19 @@
 # CHANGELOG.md
 
+## 0.5.0 — 2026-10-25
+
+Customer accounts (V2 A1), shipped on top of V1.
+
+- `customers` becomes the customer identity: `telegram_chat_id`, `phone_verified_at`, `last_login_at` added; `users` stays staff-only
+- Telegram login deep link (`/start login_<nonce>`): a first visit shares a contact card, later visits get a 6-digit OTP in the same chat
+- Forwarded address-book cards are rejected unless `contact.user_id` matches the sender, so nobody can claim another person's phone
+- Opaque 64-hex bearer tokens, stored as SHA-256 hashes with a 30-day TTL; custom middleware instead of Sanctum
+- Next BFF keeps the token in an httpOnly `zw_session` cookie and forwards the visitor IP, so the token never reaches client JS and rate limits stay per-user
+- Account page: order history, order detail, saved addresses, logout; reorder replaces the cart in one tap, capped to current stock
+- Checkout prefills name, phone, and the default address; guest checkout remains the default
+- Guest lookup by order number + phone (`POST /orders/lookup`) for buyers who do not use Telegram
+- Tests: 52 passing / 400 assertions; API.md, TELEGRAM.md, and both env templates updated
+
 ## 0.4.0 — 2026-10-22
 
 Hosting preparation for Vercel + Railway + Supabase.
