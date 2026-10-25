@@ -16,15 +16,23 @@ use Illuminate\Http\Request;
 class AccountController extends Controller
 {
     /**
+     * The list only renders a status, a date, a total and an item count, so it
+     * skips customer/events/shipment. The detail view needs them all.
+     *
      * @var array<int, string>
      */
-    private const RELATIONS = ['customer', 'township', 'items', 'events', 'shipment'];
+    private const LIST_RELATIONS = ['items'];
+
+    /**
+     * @var array<int, string>
+     */
+    private const DETAIL_RELATIONS = ['customer', 'township', 'items', 'events', 'shipment'];
 
     public function orders(Request $request): JsonResponse
     {
         $orders = Order::query()
             ->where('customer_id', $this->customer($request)->id)
-            ->with(self::RELATIONS)
+            ->with(self::LIST_RELATIONS)
             ->latest('id')
             ->paginate(10);
 
@@ -89,6 +97,7 @@ class AccountController extends Controller
                 'color' => $variant->color,
                 'unitPrice' => $product->base_price_mmk + $variant->price_delta_mmk,
                 'qty' => min((int) $item->qty, $maxQty),
+                'requested_qty' => (int) $item->qty,
                 'image' => $image?->path ?? '',
                 'maxQty' => $maxQty,
             ];
@@ -196,7 +205,7 @@ class AccountController extends Controller
         $order = Order::query()
             ->where('order_number', strtoupper(trim($validated['order_number'])))
             ->whereHas('customer', fn ($query) => $query->where('phone', $phone))
-            ->with(self::RELATIONS)
+            ->with(self::DETAIL_RELATIONS)
             ->first();
 
         if (! $order) {
@@ -238,7 +247,7 @@ class AccountController extends Controller
         return Order::query()
             ->where('customer_id', $this->customer($request)->id)
             ->where('order_number', $orderNumber)
-            ->with(self::RELATIONS)
+            ->with(self::DETAIL_RELATIONS)
             ->first();
     }
 }

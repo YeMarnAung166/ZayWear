@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## 0.5.1 — 2026-10-25
+
+Order history (V2 A2) completed on top of A1.
+
+- Order history is paginated in the UI (`/account?page=N`), so orders past the first ten are reachable; the list payload no longer eager-loads events, shipment, township, or customer
+- The whole order row is a tap target for the order detail and tracking timeline; reorder stays an independent button
+- Status pills use the semantic tokens; dates are pinned to `Asia/Yangon` so server and browser agree
+- Reorder returns `requested_qty`, and the cart warns when a quantity was reduced to available stock
+- Tests: 55 passing / 474 assertions
+
 ## 0.5.0 — 2026-10-25
 
 Customer accounts (V2 A1), shipped on top of V1.

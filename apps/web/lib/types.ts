@@ -98,14 +98,14 @@ export type Order = {
   delivery_fee_mmk: number;
   discount_mmk: number;
   total_mmk: number;
-  township: { name_mm: string; name_en: string; region: string } | null;
+  township?: { name_mm: string; name_en: string; region: string } | null;
   address_line: string;
   landmark: string;
   note: string | null;
-  customer: { name: string; phone: string } | null;
+  customer?: { name: string; phone: string } | null;
   items: OrderItem[];
-  events: OrderEvent[];
-  shipment: { carrier: string; tracking_number: string | null } | null;
+  events?: OrderEvent[];
+  shipment?: { carrier: string; tracking_number: string | null } | null;
   refusal_reason: string | null;
   created_at: string | null;
   delivered_at: string | null;
@@ -116,6 +116,7 @@ export type Paginated<T> = {
   meta?: {
     current_page: number;
     last_page: number;
+    per_page?: number;
     total: number;
   };
   links?: unknown;
@@ -158,6 +159,7 @@ export type ReorderResult = {
     color: string;
     unitPrice: number;
     qty: number;
+    requested_qty: number;
     image: string;
     maxQty: number;
   }[];

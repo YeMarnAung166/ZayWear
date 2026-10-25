@@ -165,9 +165,9 @@ The storefront never sees the bearer token. `apps/web` proxies these calls throu
 | `POST` | `/auth/otp/verify` | — | `{ "nonce": "…", "code": "123456" }` or `{ "phone": "09…", "code": "…" }` → `{ data: { token, customer } }` |
 | `POST` | `/auth/logout` | Bearer | Revokes the presented token |
 | `GET` | `/me` | Bearer | Profile, linked Telegram flag, saved addresses |
-| `GET` | `/me/orders` | Bearer | Order history, newest first |
+| `GET` | `/me/orders` | Bearer | Order history, newest first; 10 per page (`?page=2`) |
 | `GET` | `/me/orders/{orderNumber}` | Bearer | One order plus a `tracking.path` |
-| `POST` | `/me/orders/{orderNumber}/reorder` | Bearer | Returns cart lines capped to current stock, plus `unavailable` |
+| `POST` | `/me/orders/{orderNumber}/reorder` | Bearer | Returns cart lines capped to current stock (`requested_qty` carries the original), plus `unavailable` |
 | `GET`/`POST` | `/me/addresses` | Bearer | List / create; the first address becomes the default |
 | `PATCH`/`DELETE` | `/me/addresses/{id}` | Bearer | Scoped to the token's customer (`404` otherwise) |
 | `POST` | `/orders/lookup` | — | `{ "order_number": "ZW-000123", "phone": "09…" }` → order + `tracking.path`; `404` when they do not match |

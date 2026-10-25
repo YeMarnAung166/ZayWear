@@ -213,6 +213,7 @@ class CustomerAuthTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.lines.0.variantId', $variant->id)
             ->assertJsonPath('data.lines.0.qty', 2)
+            ->assertJsonPath('data.lines.0.requested_qty', 3)
             ->assertJsonCount(0, 'data.unavailable');
 
         $variant->update(['stock_qty' => 0]);
@@ -221,6 +222,87 @@ class CustomerAuthTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data.lines')
             ->assertJsonCount(1, 'data.unavailable');
+    }
+
+    public function test_order_history_is_paginated_ten_per_page(): void
+    {
+        $orderNumbers = [];
+
+        foreach (range(1, 12) as $ignored) {
+            $orderNumbers[] = $this->placeOrder('09771234567')[0];
+        }
+
+        $customer = Customer::query()->where('phone', '09771234567')->firstOrFail();
+        $token = $this->tokenFor($customer);
+
+        $this->getJson('/api/me/orders', $this->bearer($token))
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 2)
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonStructure([
+                'data' => ['*' => ['order_number', 'status', 'created_at', 'total_mmk']],
+            ]);
+
+        $this->getJson('/api/me/orders?page=2', $this->bearer($token))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.1.order_number', $orderNumbers[0]);
+    }
+
+    public function test_reorder_returns_the_same_variants_and_quantities(): void
+    {
+        $variants = ProductVariant::query()
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->limit(2)
+            ->get();
+
+        $this->assertCount(2, $variants, 'The seeded catalogue needs two active variants.');
+
+        foreach ($variants as $variant) {
+            $variant->update(['stock_qty' => 5]);
+        }
+
+        $orderNumber = (string) $this->postJson('/api/orders', [
+            'customer' => ['name' => 'Thiri Aung', 'phone' => '09771234567'],
+            'township_id' => $this->township()->id,
+            'address_line' => 'No 45, Inya Road',
+            'landmark' => 'Near Bahan market',
+            'payment_method' => 'cod',
+            'items' => [
+                ['variant_id' => $variants[0]->id, 'qty' => 2],
+                ['variant_id' => $variants[1]->id, 'qty' => 1],
+            ],
+        ])->assertCreated()->json('data.order_number');
+
+        $customer = Customer::query()->where('phone', '09771234567')->firstOrFail();
+
+        $lines = collect(
+            $this->postJson("/api/me/orders/{$orderNumber}/reorder", [], $this->bearer($this->tokenFor($customer)))
+                ->assertOk()
+                ->assertJsonCount(2, 'data.lines')
+                ->json('data.lines'),
+        )->keyBy('variantId');
+
+        $this->assertSame([$variants[0]->id, $variants[1]->id], $lines->keys()->all());
+        $this->assertSame(2, $lines[$variants[0]->id]['qty']);
+        $this->assertSame(1, $lines[$variants[1]->id]['qty']);
+        $this->assertSame(2, $lines[$variants[0]->id]['requested_qty']);
+        $this->assertSame(1, $lines[$variants[1]->id]['requested_qty']);
+    }
+
+    public function test_reorder_cannot_touch_another_customers_order(): void
+    {
+        [$orderNumber] = $this->placeOrder('09771234567');
+        $other = Customer::query()->create(['phone' => '09771234568', 'name' => 'Other']);
+
+        $this->postJson(
+            "/api/me/orders/{$orderNumber}/reorder",
+            [],
+            $this->bearer($this->tokenFor($other)),
+        )->assertNotFound();
     }
 
     public function test_an_address_cannot_be_edited_by_another_customer(): void

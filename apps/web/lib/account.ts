@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { API_URL } from "./api-url";
 import { getSessionToken } from "./session";
-import type { CustomerAccount, Order } from "./types";
+import type { CustomerAccount, Order, Paginated } from "./types";
 
 async function visitorIp(): Promise<string | null> {
   const list = await headers();
@@ -45,10 +45,26 @@ export async function getAccount(): Promise<CustomerAccount | null> {
   return body?.data ?? null;
 }
 
-export async function getAccountOrders(): Promise<Order[]> {
-  const body = await accountGet<{ data: Order[] }>("/me/orders");
+export type OrderHistory = {
+  orders: Order[];
+  page: number;
+  lastPage: number;
+  total: number;
+};
 
-  return body?.data ?? [];
+/**
+ * The API paginates at 10; the account page links between pages rather than
+ * dropping everything past the first one.
+ */
+export async function getAccountOrders(page = 1): Promise<OrderHistory> {
+  const body = await accountGet<Paginated<Order>>(`/me/orders?page=${page}`);
+
+  return {
+    orders: body?.data ?? [],
+    page: body?.meta?.current_page ?? page,
+    lastPage: body?.meta?.last_page ?? 1,
+    total: body?.meta?.total ?? body?.data?.length ?? 0,
+  };
 }
 
 export async function getAccountOrder(

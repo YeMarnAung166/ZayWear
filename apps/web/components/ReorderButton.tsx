@@ -68,15 +68,44 @@ export function ReorderButton({
         return;
       }
 
-      replaceLines(nextLines as CartLine[]);
+      const cartLines: CartLine[] = nextLines.map((line) => ({
+        variantId: line.variantId,
+        productId: line.productId,
+        productSlug: line.productSlug,
+        name_mm: line.name_mm,
+        name_en: line.name_en,
+        size: line.size,
+        color: line.color,
+        unitPrice: line.unitPrice,
+        qty: line.qty,
+        image: line.image,
+        maxQty: line.maxQty,
+      }));
+      const reduced = nextLines.filter((line) => line.qty < line.requested_qty);
+      const notices: string[] = [];
 
       if (unavailable.length > 0) {
-        window.alert(
+        notices.push(
           pick(
             `ပစ္စည်း ${unavailable.length} မျိုး မရနိုင်တော့ပါ။ ကျန်ပစ္စည်းများကို ဈေးတောင်းထဲ ထည့်ပြီးပါပြီ။`,
             `${unavailable.length} item(s) are no longer available. The rest were added to your cart.`,
           ),
         );
+      }
+
+      if (reduced.length > 0) {
+        notices.push(
+          pick(
+            "အချို့ပစ္စည်း လက်ကျန် နည်းသောကြောင့် အရေအတွက် လျှော့ထားပါသည်။",
+            "Some quantities were reduced to the available stock.",
+          ),
+        );
+      }
+
+      replaceLines(cartLines);
+
+      if (notices.length > 0) {
+        window.alert(notices.join("\n\n"));
       }
 
       router.push("/cart");

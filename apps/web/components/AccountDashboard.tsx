@@ -14,20 +14,39 @@ function formatDate(value: string | null): string {
     return "—";
   }
 
+  // Pinned to Yangon so the server and the browser render the same day; an
+  // unpinned locale flips the date near midnight and breaks hydration.
   return new Date(value).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "Asia/Yangon",
   });
 }
+
+const STATUS_TONES: Record<string, string> = {
+  pending: "bg-warning-500/10 text-warning-500",
+  packed: "bg-warning-500/10 text-warning-500",
+  shipped: "bg-warning-500/10 text-warning-500",
+  delivered: "bg-success-500/10 text-success-500",
+  cancelled: "bg-error-500/10 text-error-500",
+  refused: "bg-error-500/10 text-error-500",
+  returned: "bg-neutral-50 text-neutral-500",
+};
 
 export function AccountDashboard({
   account,
   orders,
+  page,
+  lastPage,
+  total,
   townships,
 }: {
   account: CustomerAccount;
   orders: Order[];
+  page: number;
+  lastPage: number;
+  total: number;
   townships: Township[];
 }) {
   const { pick } = useI18n();
@@ -156,8 +175,15 @@ export function AccountDashboard({
         </button>
       </section>
 
-      <section>
-        <h2 className="text-base font-semibold">{pick("အော်ဒါမှတ်တမ်း", "Order history")}</h2>
+      <section id="orders">
+        <h2 className="text-base font-semibold">
+          {pick("အော်ဒါမှတ်တမ်း", "Order history")}
+          {total > 0 ? (
+            <span className="ml-2 text-xs font-normal text-neutral-500">
+              {total} {pick("ခု", "orders")}
+            </span>
+          ) : null}
+        </h2>
 
         {orders.length === 0 ? (
           <div className="mt-3 rounded-lg border border-neutral-200 p-6 text-center">
@@ -172,39 +198,86 @@ export function AccountDashboard({
             </Link>
           </div>
         ) : (
-          <ul className="mt-3 space-y-3">
-            {orders.map((order) => {
-              const status = ORDER_STATUS_LABELS[order.status];
+          <>
+            <ul className="mt-3 space-y-3">
+              {orders.map((order) => {
+                const status = ORDER_STATUS_LABELS[order.status];
 
-              return (
-                <li
-                  key={order.order_number}
-                  className="rounded-lg border border-neutral-200 p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <Link
-                        href={`/account/orders/${order.order_number}`}
-                        className="price text-sm font-bold underline"
-                      >
-                        {order.order_number}
-                      </Link>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {formatDate(order.created_at)} ·{" "}
-                        {status ? pick(status.mm, status.en) : order.status}
-                      </p>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {pick("ပစ္စည်း", "Items")} {order.items.length} ·{" "}
-                        <span className="price">{MMK(order.total_mmk)}</span>
-                      </p>
+                return (
+                  <li
+                    key={order.order_number}
+                    className="relative rounded-lg border border-neutral-200 p-4 transition-colors hover:border-neutral-900"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <Link
+                          href={`/account/orders/${order.order_number}`}
+                          aria-label={pick(
+                            `အော်ဒါ ${order.order_number} ကို ကြည့်ရန်`,
+                            `View order ${order.order_number}`,
+                          )}
+                          className="price text-sm font-bold underline after:absolute after:inset-0 after:content-['']"
+                        >
+                          {order.order_number}
+                        </Link>
+                        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                          <span>{formatDate(order.created_at)}</span>
+                          <span
+                            className={`rounded-sm px-2 py-0.5 text-xs font-medium ${
+                              STATUS_TONES[order.status] ?? "bg-neutral-50 text-neutral-500"
+                            }`}
+                          >
+                            {status ? pick(status.mm, status.en) : order.status}
+                          </span>
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          {pick("ပစ္စည်း", "Items")} {order.items.length} ·{" "}
+                          <span className="price">{MMK(order.total_mmk)}</span>
+                        </p>
+                      </div>
+
+                      <div className="relative z-10">
+                        <ReorderButton orderNumber={order.order_number} />
+                      </div>
                     </div>
+                  </li>
+                );
+              })}
+            </ul>
 
-                    <ReorderButton orderNumber={order.order_number} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+            {lastPage > 1 ? (
+              <nav
+                aria-label={pick("အော်ဒါမှတ်တမ်း စာမျက်နှာ", "Order history pages")}
+                className="mt-4 flex flex-wrap items-center justify-between gap-3"
+              >
+                <p className="text-xs text-neutral-500">
+                  {pick(
+                    `စာမျက်နှာ ${page} / ${lastPage}`,
+                    `Page ${page} of ${lastPage}`,
+                  )}
+                </p>
+
+                <div className="flex gap-2">
+                  {page > 1 ? (
+                    <Link
+                      href={`/account?page=${page - 1}#orders`}
+                      className="inline-flex min-h-11 items-center rounded-md border border-neutral-200 px-4 text-sm font-medium"
+                    >
+                      {pick("ယခင်", "Previous")}
+                    </Link>
+                  ) : null}
+                  {page < lastPage ? (
+                    <Link
+                      href={`/account?page=${page + 1}#orders`}
+                      className="inline-flex min-h-11 items-center rounded-md border border-neutral-200 px-4 text-sm font-medium"
+                    >
+                      {pick("နောက်", "Next")}
+                    </Link>
+                  ) : null}
+                </div>
+              </nav>
+            ) : null}
+          </>
         )}
       </section>
 
