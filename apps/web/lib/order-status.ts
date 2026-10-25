@@ -15,6 +15,7 @@ export const ORDER_STATUS_LABELS: Record<string, { mm: string; en: string }> = {
 
 export const ORDER_STATUS_TONES: Record<string, string> = {
   pending: "bg-warning-500/10 text-warning-500",
+  confirmed: "bg-warning-500/10 text-warning-500",
   packed: "bg-warning-500/10 text-warning-500",
   shipped: "bg-warning-500/10 text-warning-500",
   delivered: "bg-success-500/10 text-success-500",
