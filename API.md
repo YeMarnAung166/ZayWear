@@ -168,11 +168,17 @@ The storefront never sees the bearer token. `apps/web` proxies these calls throu
 | `GET` | `/me/orders` | Bearer | Order history, newest first; 10 per page (`?page=2`) |
 | `GET` | `/me/orders/{orderNumber}` | Bearer | One order plus a `tracking.path` |
 | `POST` | `/me/orders/{orderNumber}/reorder` | Bearer | Returns cart lines capped to current stock (`requested_qty` carries the original), plus `unavailable` |
+| `GET` | `/me/wishlist` | Bearer | Active saved products, newest first, with the same product payload as the catalogue |
+| `GET` | `/me/wishlist/ids` | Bearer | Just the saved product ids, used to hydrate hearts on static pages |
+| `POST` | `/me/wishlist` | Bearer | `{ "product_id": 1 }`; `201` created, `200` if already saved, `404` unknown or inactive |
+| `DELETE` | `/me/wishlist/{productId}` | Bearer | Idempotent and scoped to the token's customer |
 | `GET`/`POST` | `/me/addresses` | Bearer | List / create; the first address becomes the default |
 | `PATCH`/`DELETE` | `/me/addresses/{id}` | Bearer | Scoped to the token's customer (`404` otherwise) |
 | `POST` | `/orders/lookup` | — | `{ "order_number": "ZW-000123", "phone": "09…" }` → order + `tracking.path`; `404` when they do not match |
 
 Tokens are 64-character opaque strings; only their SHA-256 hash is stored (`customer_tokens`), and they expire after `CUSTOMER_TOKEN_TTL_DAYS` (30 by default). OTPs are 6 digits, hashed, valid for `OTP_TTL_MINUTES` (10) and dead after `OTP_MAX_ATTEMPTS` (5) wrong tries.
+
+Wishlist saves are per product, not per variant. Inactive products stay in `wishlist_items` but are omitted from both wishlist responses, so they reappear if the product is reactivated. Moving an item to the cart is a storefront action: it removes the saved row and adds one unit of the chosen variant.
 
 Guest checkout stays the default: `/orders/lookup` and the signed tracking link work without an account.
 

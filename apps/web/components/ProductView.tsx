@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { WishlistButton } from "@/components/WishlistButton";
 import { useI18n } from "@/lib/i18n";
 import { imageUrl } from "@/lib/format";
 import type { Product, ShopConfig, SizeChart } from "@/lib/types";
@@ -51,6 +52,10 @@ export function ProductView({
                 className="object-cover"
               />
             ) : null}
+            <WishlistButton
+              productId={product.id}
+              className="absolute right-2 top-2 z-10"
+            />
           </div>
 
           {product.images.length > 1 ? (

@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { digitsOnly } from "@/lib/format";
+import { useWishlist } from "@/lib/wishlist";
 
 type Stage = "idle" | "waiting" | "otp" | "phone-otp";
 
-export function AccountLogin() {
+export function AccountLogin({ next = "/account" }: { next?: string }) {
   const { pick } = useI18n();
+  const { refresh: refreshWishlist } = useWishlist();
   const router = useRouter();
 
   const [stage, setStage] = useState<Stage>("idle");
@@ -52,7 +54,8 @@ export function AccountLogin() {
 
         if (body?.status === "ok") {
           active = false;
-          router.replace("/account");
+          void refreshWishlist();
+          router.replace(next);
           router.refresh();
           return;
         }
@@ -90,7 +93,7 @@ export function AccountLogin() {
       active = false;
       clearTimeout(timer);
     };
-  }, [stage, nonce, router, pick]);
+  }, [stage, nonce, router, pick, next, refreshWishlist]);
 
   const startTelegram = async () => {
     setBusy(true);
@@ -158,7 +161,8 @@ export function AccountLogin() {
         return;
       }
 
-      router.replace("/account");
+      void refreshWishlist();
+      router.replace(next);
       router.refresh();
     } catch {
       setError(pick("အင်တာနက် ချိတ်ဆက်မှု မရပါ။", "Could not reach the server."));

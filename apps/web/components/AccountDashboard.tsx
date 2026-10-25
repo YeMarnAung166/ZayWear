@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { HeartIcon } from "@/components/HeartIcon";
 import { ReorderButton } from "@/components/ReorderButton";
 import { MMK } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { formatOrderDate } from "@/lib/order-format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from "@/lib/order-status";
 import type { CustomerAccount, Order, Township } from "@/lib/types";
+import { useWishlist } from "@/lib/wishlist";
 
 export function AccountDashboard({
   account,
@@ -26,6 +28,7 @@ export function AccountDashboard({
   townships: Township[];
 }) {
   const { pick } = useI18n();
+  const { count: wishlistCount } = useWishlist();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(account.addresses.length === 0);
@@ -149,6 +152,30 @@ export function AccountDashboard({
         >
           {pick("ထွက်ရန်", "Log out")}
         </button>
+      </section>
+
+      <section>
+        <Link
+          href="/account/wishlist"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 p-4 transition-colors hover:border-neutral-900"
+        >
+          <span className="flex items-center gap-3">
+            <HeartIcon className="h-5 w-5 text-accent-500" />
+            <span>
+              <span className="block text-base font-semibold">
+                {pick("ဝှစ်ရှ်လစ်", "Wishlist")}
+              </span>
+              <span className="mt-0.5 block text-sm text-neutral-500">
+                {pick("သိမ်းထားသော ပစ္စည်းများ", "Saved products")}
+              </span>
+            </span>
+          </span>
+          <span className="text-sm text-neutral-500">
+            {wishlistCount > 0
+              ? pick(`${wishlistCount} ခု`, `${wishlistCount} saved`)
+              : pick("ကြည့်ရန်", "View")}
+          </span>
+        </Link>
       </section>
 
       <section id="orders">

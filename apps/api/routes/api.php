@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\TelegramController;
 use App\Http\Controllers\Api\TownshipController;
+use App\Http\Controllers\Api\WishlistController;
 use App\Http\Middleware\EnsureAdminToken;
 use App\Http\Middleware\EnsureCustomerToken;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +46,10 @@ Route::middleware([EnsureCustomerToken::class, 'throttle:api'])->prefix('me')->g
     Route::get('/orders', [AccountController::class, 'orders']);
     Route::get('/orders/{orderNumber}', [AccountController::class, 'order']);
     Route::post('/orders/{orderNumber}/reorder', [AccountController::class, 'reorder']);
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+    Route::get('/wishlist/ids', [WishlistController::class, 'ids']);
+    Route::post('/wishlist', [WishlistController::class, 'store']);
+    Route::delete('/wishlist/{product}', [WishlistController::class, 'destroy']);
     Route::get('/addresses', [AccountController::class, 'addresses']);
     Route::post('/addresses', [AccountController::class, 'storeAddress']);
     Route::patch('/addresses/{address}', [AccountController::class, 'updateAddress']);

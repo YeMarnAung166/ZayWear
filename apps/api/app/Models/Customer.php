@@ -40,6 +40,11 @@ class Customer extends Model
         return $this->hasMany(CustomerToken::class);
     }
 
+    public function wishlistItems(): HasMany
+    {
+        return $this->hasMany(WishlistItem::class);
+    }
+
     public function otps(): HasMany
     {
         return $this->hasMany(CustomerOtp::class);

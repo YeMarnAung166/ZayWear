@@ -1,8 +1,8 @@
 # implemented.md — What Is Actually Done
 
-**Updated:** 2026-10-22
-**Phase:** M2–M3 mock build — storefront, API, admin, tracking, Telegram bot run locally on mock data
-**Next:** swap in real townships and catalog; deploy the API for a permanent webhook URL (M1/M4)
+**Updated:** 2026-10-25
+**Phase:** V2 — customer accounts (A1), order history (A2), wishlist (A5)
+**Next:** remaining V2 items; V1 still needs the real eComReg number
 
 ---
 
@@ -100,13 +100,23 @@
 - `scripts/backup-db.ps1`, `scripts/restore-db.ps1` (custom-format dumps, session pooler), `scripts/smoke-test.ps1` — 10 post-deploy checks, all passing against local
 - RUNBOOK §3 rewritten with the actual Railway/Vercel/Supabase steps and a rollback table; §6 references the backup scripts
 
+### V2 customer accounts + wishlist (2026-10-25)
+- Customers log in through Telegram with an opaque bearer token stored server-side; the Next BFF keeps it in an httpOnly `zw_session` cookie and forwards the visitor IP
+- Account page: order history with pagination, order detail/receipt, tracking timeline, saved addresses, reorder, logout
+- Guest checkout stays the default; guests can still track an order with the order number and phone, or the signed link
+- Wishlist: `wishlist_items` unique per customer + product; four `/me/wishlist` endpoints; saves persist across sessions and logout/login
+- Hearts on cards and the PDP hydrate client-side from `/me/wishlist/ids`, keeping product pages static; guests are returned to the product after login
+- `/account/wishlist` supports move-to-cart (one unit): direct when a single variant is in stock, inline colour/size picker otherwise; the row is removed on success and a **View cart** notice stays on the page
+- Inactive products stay saved but are hidden from both wishlist responses and return if reactivated
+
 ### Verification
-- `npm run build` — 13 routes, TypeScript clean; `npm run lint` clean
-- `php artisan test` — 33 passing / 289 assertions (`OrderApiTest` 11 + `TelegramBotTest` 12 + `TownshipsImportTest` 5 + `DemoOrderSeederTest` 3 + `ExampleTest` 2)
-- Telegram tests cover secret rejection, catalogue, product and size deep links, end-to-end COD order, multi-quantity, double-tap protection, invalid phone, `/status` last-four matching, admin confirm, and rejection of a customer-chat confirm
+- `npm run build` — 29 routes, TypeScript clean; `npm run lint` clean
+- `php artisan test` — 64 passing / 591 assertions, including the wishlist feature tests
+- Wishlist tests cover guest rejection, save/list, idempotent saves, a new session, customer scoping, idempotent delete, unknown/inactive products, and inactive products disappearing from existing lists
 - `vendor/bin/pint --dirty` clean
-- End-to-end in Chrome at 390 × 844: home → PDP → cart (2 lines) → checkout → `ZW-000001` → success → public tracking, in Burmese and English
-- API smoke: `201` create, replay `200`, `422` invalid transition, `403` bad token, `401` admin, `429` throttle
+- API smoke: wishlist save `201`, duplicate `200`, ids/list, delete `200`, guest `401`; guest wishlist page `307` to login, and a signed-in login with `?next` `307` to the wishlist
+- End-to-end in Chrome at 390 × 844 (historical): home → PDP → cart (2 lines) → checkout → `ZW-000001` → success → public tracking, in Burmese and English
+- API smoke (historical): `201` create, replay `200`, `422` invalid transition, `403` bad token, `401` admin, `429` throttle
 
 ---
 

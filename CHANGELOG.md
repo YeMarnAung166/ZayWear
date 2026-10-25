@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## 0.6.0 — 2026-10-25
+
+Wishlist (V2 A5).
+
+- `wishlist_items` is unique per customer and product, so saving is idempotent and survives logout/login and new sessions
+- `GET /me/wishlist`, `GET /me/wishlist/ids`, `POST /me/wishlist`, and `DELETE /me/wishlist/{product}`; inactive products are hidden but kept, and reappear if reactivated
+- Hearts on product cards and the PDP hydrate from the ids endpoint, so product pages stay static; guests go to login with a sanitized `next` path back to the product
+- `/account/wishlist` lists saved products with a move-to-cart action: direct when only one variant is in stock, an inline colour/size picker otherwise. A successful move removes the row and offers **View cart** without leaving the page
+- The account dashboard links to the wishlist with the saved count
+- Tests: 64 passing / 591 assertions
+
 ## 0.5.3 — 2026-10-25
 
 The public tracking page and the account order page now have separate jobs.

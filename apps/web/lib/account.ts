@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { API_URL } from "./api-url";
 import { getSessionToken } from "./session";
-import type { CustomerAccount, Order, Paginated } from "./types";
+import type { CustomerAccount, Order, Paginated, Product } from "./types";
 
 async function visitorIp(): Promise<string | null> {
   const list = await headers();
@@ -79,4 +79,14 @@ export async function getAccountOrder(
   }
 
   return { order: body.data, trackingPath: body.tracking.path };
+}
+
+/**
+ * Returns `null` when the API could not be reached, so the wishlist page can
+ * distinguish an outage from a genuinely empty list.
+ */
+export async function getWishlist(): Promise<Product[] | null> {
+  const body = await accountGet<{ data: Product[] }>("/me/wishlist");
+
+  return body ? (body.data ?? []) : null;
 }

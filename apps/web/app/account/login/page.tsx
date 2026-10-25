@@ -7,10 +7,25 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AccountLoginPage() {
-  if (await getAccount()) {
-    redirect("/account");
+function safeNext(value: string | undefined): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return "/account";
   }
 
-  return <AccountLogin />;
+  return value;
+}
+
+export default async function AccountLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  const destination = safeNext(next);
+
+  if (await getAccount()) {
+    redirect(destination);
+  }
+
+  return <AccountLogin next={destination} />;
 }
