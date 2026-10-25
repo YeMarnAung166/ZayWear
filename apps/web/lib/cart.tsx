@@ -32,6 +32,7 @@ type CartValue = {
   addLine: (line: CartLine) => void;
   updateQty: (variantId: number, qty: number) => void;
   removeLine: (variantId: number) => void;
+  replaceLines: (lines: CartLine[]) => void;
   clear: () => void;
 };
 
@@ -97,6 +98,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setLines((current) => current.filter((item) => item.variantId !== variantId));
   }, []);
 
+  const replaceLines = useCallback((next: CartLine[]) => {
+    setLines(next);
+  }, []);
+
   const clear = useCallback(() => setLines([]), []);
 
   const value = useMemo<CartValue>(() => {
@@ -114,9 +119,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addLine,
       updateQty,
       removeLine,
+      replaceLines,
       clear,
     };
-  }, [lines, hydrated, addLine, updateQty, removeLine, clear]);
+  }, [lines, hydrated, addLine, updateQty, removeLine, replaceLines, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

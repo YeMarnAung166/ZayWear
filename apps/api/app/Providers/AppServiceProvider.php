@@ -37,6 +37,19 @@ class AppServiceProvider extends ServiceProvider
 
         // Basic-auth brute force protection for the Blade admin and admin JSON.
         RateLimiter::for('admin', fn (Request $request) => Limit::perMinute($this->limit('admin', 30))->by($request->ip()));
+
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute($this->limit('login', 60))->by($request->ip()));
+
+        // Phone OTPs are the expensive path: limit both the phone and the IP.
+        RateLimiter::for('otp', fn (Request $request) => [
+            Limit::perMinute($this->limit('otp', 3))->by('otp-phone:'.$request->input('phone')),
+            Limit::perHour(10)->by('otp-ip:'.$request->ip()),
+        ]);
+
+        RateLimiter::for('otp-verify', fn (Request $request) => Limit::perMinute($this->limit('otp_verify', 10))->by($request->ip()));
+
+        // Guest order lookup: order numbers are sequential, so keep guessing slow.
+        RateLimiter::for('lookup', fn (Request $request) => Limit::perMinute($this->limit('lookup', 5))->by($request->ip()));
     }
 
     private function limit(string $name, int $default): int

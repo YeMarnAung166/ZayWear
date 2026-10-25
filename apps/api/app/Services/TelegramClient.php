@@ -61,6 +61,11 @@ class TelegramClient
         ]);
     }
 
+    public function removeKeyboard(int|string $chatId, string $text): void
+    {
+        $this->sendMessage($chatId, $text, ['remove_keyboard' => true]);
+    }
+
     public function answerCallbackQuery(string $callbackId, ?string $text = null): void
     {
         $payload = ['callback_query_id' => $callbackId];

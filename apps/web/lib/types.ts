@@ -120,3 +120,46 @@ export type Paginated<T> = {
   };
   links?: unknown;
 };
+
+export type CustomerAddress = {
+  id: number;
+  label: string;
+  township: {
+    id: number;
+    name_mm: string;
+    name_en: string;
+    region: string;
+    delivery_fee_mmk: number;
+  } | null;
+  address_line: string;
+  landmark: string;
+  is_default: boolean;
+};
+
+export type CustomerAccount = {
+  id: number;
+  name: string;
+  phone: string;
+  telegram_linked: boolean;
+  phone_verified_at: string | null;
+  last_login_at: string | null;
+  addresses: CustomerAddress[];
+  created_at: string | null;
+};
+
+export type ReorderResult = {
+  lines: {
+    variantId: number;
+    productId: number;
+    productSlug: string;
+    name_mm: string;
+    name_en: string;
+    size: string;
+    color: string;
+    unitPrice: number;
+    qty: number;
+    image: string;
+    maxQty: number;
+  }[];
+  unavailable: { name_mm: string; name_en: string; size: string }[];
+};

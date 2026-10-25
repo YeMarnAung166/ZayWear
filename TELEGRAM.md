@@ -19,6 +19,7 @@ Telegram is a sales channel, not a notification tool. A customer can order witho
 | `/start` | Welcome + product list |
 | `/start product_8` | Product deep link, skips to size selection |
 | `/start product_8_size_M` | Product + size deep link, skips to quantity |
+| `/start login_<nonce>` | Account login deep link from the website. First time: asks for the phone number via a “Share my phone number” keyboard button. Returning chat: sends a 6-digit code the site asks for |
 | `/shop`, `/order` | Product list |
 | `/status ZW-000123 4567` | Status + tracking link; requires the last four digits of the order's phone |
 | `/contact` | Support handle (if configured) and the site contact URL |
@@ -27,6 +28,8 @@ Telegram is a sales channel, not a notification tool. A customer can order witho
 | `/id` | Echoes the chat id (used to configure admin alerts) |
 
 Commands are registered with `setMyCommands`, so Telegram shows them in the menu.
+
+Account login is a separate, non-ordering flow: the site creates a 15-minute nonce, the customer opens the deep link, and the bot links that chat to `customers.phone`. A contact card is accepted only when `contact.user_id` matches the sender, so a forwarded address-book card cannot claim someone else's number. Once a chat is linked, later logins send a 6-digit OTP instead of asking for the phone again.
 
 ---
 

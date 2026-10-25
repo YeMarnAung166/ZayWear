@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
@@ -43,6 +44,7 @@ class TelegramBot
         private readonly OrderPricing $pricing,
         private readonly OrderStateMachine $stateMachine,
         private readonly TrackingToken $tokens,
+        private readonly CustomerAuth $auth,
     ) {}
 
     /**
@@ -183,9 +185,22 @@ class TelegramBot
     private function handleMessage(array $message): void
     {
         $chatId = (int) ($message['chat']['id'] ?? 0);
+
+        if ($chatId === 0) {
+            return;
+        }
+
+        // Contact messages carry no text, so they must be handled before the
+        // empty-text guard below.
+        if (isset($message['contact']) && is_array($message['contact'])) {
+            $this->handleContact($chatId, $message['contact'], (int) ($message['from']['id'] ?? 0));
+
+            return;
+        }
+
         $text = trim((string) ($message['text'] ?? ''));
 
-        if ($chatId === 0 || $text === '') {
+        if ($text === '') {
             return;
         }
 
@@ -236,6 +251,12 @@ class TelegramBot
 
     private function start(int $chatId, string $argument): void
     {
+        if (preg_match('/^login_([a-f0-9]{32})$/', $argument, $matches)) {
+            $this->handleLoginStart($chatId, $matches[1]);
+
+            return;
+        }
+
         if (preg_match('/^product_(\d+)(?:_size_([A-Za-z0-9]+))?$/', $argument, $matches)) {
             $productId = (int) $matches[1];
             $size = $matches[2] ?? null;
@@ -269,6 +290,84 @@ class TelegramBot
         );
 
         $this->sendProducts($chatId);
+    }
+
+    private function handleLoginStart(int $chatId, string $nonce): void
+    {
+        $session = $this->auth->attachLoginToChat($nonce, $chatId);
+
+        if (! $session) {
+            $this->client->sendMessage(
+                $chatId,
+                "ဝင်ရန် လင့်ခ် သက်တမ်းကုန်သွားပါပြီ။\nဝဘ်ဆိုက်တွင် ပြန်စမ်းပါ။",
+            );
+
+            return;
+        }
+
+        $customer = Customer::query()->where('telegram_chat_id', (string) $chatId)->first();
+
+        if ($customer) {
+            $this->auth->requestOtp($customer);
+            $this->auth->markAwaitingOtp($session, $customer);
+
+            $this->client->sendMessage(
+                $chatId,
+                "ကုဒ် ပို့ပြီးပါပြီ။\nဝဘ်ဆိုက်ရှိ အကောင့်ဝင်ရန် စာမျက်နှာတွင် ကုဒ် ၆ လုံး ရိုက်ထည့်ပါ။",
+            );
+
+            return;
+        }
+
+        $this->client->sendMessage(
+            $chatId,
+            "ZayWear အကောင့်သို့ ဝင်ရန် သင့်ဖုန်းနံပါတ်ကို မျှဝေပါ။\n\n"
+            .'အောက်မှ ခလုတ်ကို နှိပ်ပါ။',
+            [
+                'keyboard' => [[['text' => 'ဖုန်းနံပါတ် မျှဝေရန်', 'request_contact' => true]]],
+                'resize_keyboard' => true,
+                'one_time_keyboard' => true,
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $contact
+     */
+    private function handleContact(int $chatId, array $contact, int $fromId): void
+    {
+        $contactUserId = isset($contact['user_id']) ? (int) $contact['user_id'] : null;
+
+        // Only the sender's own Telegram contact carries their user id. A
+        // forwarded address-book card must never claim someone else's phone.
+        if ($contactUserId === null || $contactUserId !== $fromId) {
+            $this->client->sendMessage($chatId, 'သင့်ကိုယ်ပိုင် ဖုန်းနံပါတ်ကိုသာ မျှဝေပါ။');
+
+            return;
+        }
+
+        $customer = $this->auth->linkChat(
+            $chatId,
+            (string) ($contact['phone_number'] ?? ''),
+            (string) ($contact['first_name'] ?? ''),
+        );
+
+        if (! $customer) {
+            $this->client->sendMessage($chatId, 'ဖုန်းနံပါတ် မမှန်ပါ။ ထပ်စမ်းပါ။');
+
+            return;
+        }
+
+        $session = $this->auth->pendingLoginForChat($chatId);
+
+        if ($session) {
+            $this->auth->confirmLogin($session, $customer);
+        }
+
+        $this->client->removeKeyboard(
+            $chatId,
+            "ဖုန်းနံပါတ် ချိတ်ဆက်ပြီးပါပြီ။\nဝဘ်ဆိုက်သို့ ပြန်သွားပါ။",
+        );
     }
 
     private function sendProducts(int $chatId): void

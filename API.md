@@ -22,6 +22,10 @@
 | `orders` | `POST /orders` | 10/min per IP |
 | `tracking` | `GET /orders/{number}/{token}` | 60/min per IP |
 | `admin` | Admin JSON **and** the Blade admin | 30/min per IP |
+| `login` | Telegram start/poll and logout | 60/min per IP |
+| `otp` | `POST /auth/otp/request` | 3/min per phone, 10/hour per IP |
+| `otp-verify` | `POST /auth/otp/verify` | 10/min per IP |
+| `lookup` | `POST /orders/lookup` | 5/min per IP |
 
 Rate limiters are named in `app/Providers/AppServiceProvider.php`. Do not use inline `throttle:x,y` — it shares one counter per IP and will lock checkout out during server-side rendering.
 
@@ -147,7 +151,34 @@ Public, signed tracking. The token is an HMAC over the order number with a 90-da
 
 ---
 
-## 3. Admin JSON
+## 3. Customer accounts
+
+Phone + Telegram OTP. There are no passwords and no SMS: the bot sends the code to the chat that has already shared the customer's phone number.
+
+The storefront never sees the bearer token. `apps/web` proxies these calls through its own route handlers, keeps the token in an httpOnly `zw_session` cookie, and forwards the visitor IP so rate limits stay per-browser.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `POST` | `/auth/telegram/start` | — | Returns `{ nonce, deep_link, expires_at }`; the link opens `https://t.me/<bot>?start=login_<nonce>` |
+| `GET` | `/auth/telegram/poll/{nonce}` | — | `202` pending, `200 { status: "otp_required", phone_masked }`, `200 { data: { token, customer } }`, `410` expired |
+| `POST` | `/auth/otp/request` | — | `{ "phone": "09…" }`. Always `200`, whether or not the phone is linked |
+| `POST` | `/auth/otp/verify` | — | `{ "nonce": "…", "code": "123456" }` or `{ "phone": "09…", "code": "…" }` → `{ data: { token, customer } }` |
+| `POST` | `/auth/logout` | Bearer | Revokes the presented token |
+| `GET` | `/me` | Bearer | Profile, linked Telegram flag, saved addresses |
+| `GET` | `/me/orders` | Bearer | Order history, newest first |
+| `GET` | `/me/orders/{orderNumber}` | Bearer | One order plus a `tracking.path` |
+| `POST` | `/me/orders/{orderNumber}/reorder` | Bearer | Returns cart lines capped to current stock, plus `unavailable` |
+| `GET`/`POST` | `/me/addresses` | Bearer | List / create; the first address becomes the default |
+| `PATCH`/`DELETE` | `/me/addresses/{id}` | Bearer | Scoped to the token's customer (`404` otherwise) |
+| `POST` | `/orders/lookup` | — | `{ "order_number": "ZW-000123", "phone": "09…" }` → order + `tracking.path`; `404` when they do not match |
+
+Tokens are 64-character opaque strings; only their SHA-256 hash is stored (`customer_tokens`), and they expire after `CUSTOMER_TOKEN_TTL_DAYS` (30 by default). OTPs are 6 digits, hashed, valid for `OTP_TTL_MINUTES` (10) and dead after `OTP_MAX_ATTEMPTS` (5) wrong tries.
+
+Guest checkout stays the default: `/orders/lookup` and the signed tracking link work without an account.
+
+---
+
+## 4. Admin JSON
 
 Header: `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401`. Rate limited to 30/min.
 
@@ -165,7 +196,7 @@ Invalid transitions return `422` (for example `delivered → pending`). A COD or
 
 ---
 
-## 4. Telegram webhook
+## 5. Telegram webhook
 
 `POST /api/telegram/webhook`
 
@@ -175,7 +206,7 @@ Always answers `200` after a handled update so Telegram does not retry. See `TEL
 
 ---
 
-## 5. Local smoke test
+## 6. Local smoke test
 
 ```bash
 curl -s http://127.0.0.1:8000/api/config

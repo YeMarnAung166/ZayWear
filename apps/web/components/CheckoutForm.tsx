@@ -7,24 +7,31 @@ import { useCart } from "@/lib/cart";
 import { useI18n } from "@/lib/i18n";
 import { createOrder } from "@/lib/orders";
 import { digitsOnly, MMK } from "@/lib/format";
-import type { ShopConfig, Township } from "@/lib/types";
+import type { CustomerAccount, ShopConfig, Township } from "@/lib/types";
 
 export function CheckoutForm({
   townships,
   config,
+  account,
 }: {
   townships: Township[];
   config: ShopConfig;
+  account: CustomerAccount | null;
 }) {
   const { t, pick } = useI18n();
   const { lines, subtotal, clear, hydrated } = useCart();
   const router = useRouter();
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("09");
-  const [townshipId, setTownshipId] = useState("");
-  const [address, setAddress] = useState("");
-  const [landmark, setLandmark] = useState("");
+  const defaultAddress =
+    account?.addresses.find((item) => item.is_default) ?? account?.addresses[0] ?? null;
+
+  const [name, setName] = useState(account?.name ?? "");
+  const [phone, setPhone] = useState(account?.phone ?? "09");
+  const [townshipId, setTownshipId] = useState(
+    defaultAddress?.township ? String(defaultAddress.township.id) : "",
+  );
+  const [address, setAddress] = useState(defaultAddress?.address_line ?? "");
+  const [landmark, setLandmark] = useState(defaultAddress?.landmark ?? "");
   const [note, setNote] = useState("");
   const [payment, setPayment] = useState("cod");
   const [error, setError] = useState<string | null>(null);

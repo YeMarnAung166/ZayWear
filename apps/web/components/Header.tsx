@@ -80,6 +80,17 @@ export function Header() {
           </div>
 
           <Link
+            href="/account"
+            className="flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium"
+            aria-label={t("nav.account")}
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="8" r="3.2" />
+              <path d="M5 20a7 7 0 0 1 14 0" strokeLinecap="round" />
+            </svg>
+          </Link>
+
+          <Link
             href="/cart"
             className="relative flex h-11 min-w-11 items-center justify-center rounded-md px-2 text-sm font-medium"
             aria-label={`${t("nav.cart")} (${count})`}

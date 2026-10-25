@@ -13,6 +13,11 @@ return [
     'telegram_admin_chat_id' => env('TELEGRAM_ADMIN_CHAT_ID', ''),
     'telegram_ca_bundle' => env('TELEGRAM_CA_BUNDLE', ''),
 
+    'customer_token_ttl_days' => (int) env('CUSTOMER_TOKEN_TTL_DAYS', 30),
+    'otp_ttl_minutes' => (int) env('OTP_TTL_MINUTES', 10),
+    'otp_max_attempts' => (int) env('OTP_MAX_ATTEMPTS', 5),
+    'telegram_login_ttl_minutes' => (int) env('TELEGRAM_LOGIN_TTL_MINUTES', 15),
+
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
     'image_base' => env('IMAGE_BASE', ''),
 
@@ -25,5 +30,9 @@ return [
         'orders' => (int) env('ORDER_RATE_LIMIT_PER_MINUTE', 10),
         'tracking' => (int) env('TRACKING_RATE_LIMIT_PER_MINUTE', 60),
         'admin' => (int) env('ADMIN_RATE_LIMIT_PER_MINUTE', 30),
+        'login' => (int) env('LOGIN_RATE_LIMIT_PER_MINUTE', 60),
+        'otp' => (int) env('OTP_RATE_LIMIT_PER_MINUTE', 3),
+        'otp_verify' => (int) env('OTP_VERIFY_RATE_LIMIT_PER_MINUTE', 10),
+        'lookup' => (int) env('LOOKUP_RATE_LIMIT_PER_MINUTE', 5),
     ],
 ];
