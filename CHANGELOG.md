@@ -1,5 +1,15 @@
 # CHANGELOG.md
 
+## 0.5.2 — 2026-10-25
+
+Tracking page polish, shared by the public signed link and the account order detail.
+
+- Completed timeline steps now carry the event timestamp (Yangon time) instead of only the current status
+- Cancelled, refused, and returned orders show when that happened, and refused orders keep their reason
+- Totals include the discount when one was applied, so the math reads correctly
+- The payment method and status (COD, KBZPay, Wave; unpaid/paid/refunded) are shown with the totals
+- The “Order” eyebrow no longer uses uppercase or letter-spacing, and the placed date is pinned to `Asia/Yangon`
+
 ## 0.5.1 — 2026-10-25
 
 Order history (V2 A2) completed on top of A1.

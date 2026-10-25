@@ -27,28 +27,78 @@ const REFUSALS: Record<string, { mm: string; en: string }> = {
   other: { mm: "အခြား", en: "Other" },
 };
 
+const PAYMENT_METHODS: Record<string, { mm: string; en: string }> = {
+  cod: { mm: "ပစ္စည်းရောက်မှ ငွေချေ", en: "Cash on delivery" },
+  kbzpay: { mm: "KBZPay", en: "KBZPay" },
+  wave: { mm: "Wave Money", en: "Wave Money" },
+};
+
+const PAYMENT_STATUSES: Record<string, { mm: string; en: string }> = {
+  unpaid: { mm: "မပေးရသေးပါ", en: "Unpaid" },
+  paid: { mm: "ပေးချေပြီး", en: "Paid" },
+  refunded: { mm: "ပြန်အမ်းပြီး", en: "Refunded" },
+};
+
+// Pinned to Yangon so the server and the browser render the same day; an
+// unpinned locale flips the date near midnight and breaks hydration.
+const TIME_ZONE = "Asia/Yangon";
+
+function formatDate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: TIME_ZONE,
+  });
+}
+
+function formatTimestamp(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  return new Date(value).toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TIME_ZONE,
+  });
+}
+
 export function OrderTracking({ order }: { order: Order }) {
   const { t, pick } = useI18n();
 
   const terminal = ["cancelled", "refused", "returned"].includes(order.status);
   const currentIndex = STEPS.indexOf(order.status as (typeof STEPS)[number]);
 
+  // Events arrive oldest first and statuses only move forward, so the first
+  // event reaching a status is the moment that step happened.
+  const eventAt = new Map<string, string>();
+
+  for (const event of order.events ?? []) {
+    if (event.to && event.at && !eventAt.has(event.to)) {
+      eventAt.set(event.to, event.at);
+    }
+  }
+
+  const placedAt = formatDate(eventAt.get("pending") ?? order.created_at);
+  const terminalAt = formatTimestamp(eventAt.get(order.status));
+  const paymentMethod = PAYMENT_METHODS[order.payment_method];
+  const paymentStatus = PAYMENT_STATUSES[order.payment_status];
+
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs uppercase tracking-wide text-neutral-500">
-          {pick("အော်ဒါ", "Order")}
-        </p>
+        <p className="text-xs text-neutral-500">{pick("အော်ဒါ", "Order")}</p>
         <h1 className="price text-xl font-bold">{order.order_number}</h1>
         <p className="mt-1 text-sm text-neutral-500">
-          {pick("မှာယူသည့်ရက်", "Placed")}{" "}
-          {order.created_at
-            ? new Date(order.created_at).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })
-            : "—"}
+          {pick("မှာယူသည့်ရက်", "Placed")} {placedAt ?? "—"}
         </p>
       </div>
 
@@ -58,6 +108,9 @@ export function OrderTracking({ order }: { order: Order }) {
             <p className="text-base font-semibold">
               {pick(LABELS[order.status].mm, LABELS[order.status].en)}
             </p>
+            {terminalAt ? (
+              <p className="mt-1 text-xs text-neutral-500">{terminalAt}</p>
+            ) : null}
             {order.refusal_reason ? (
               <p className="mt-1 text-sm text-neutral-500">
                 {pick("အကြောင်းရင်း — ", "Reason — ")}
@@ -72,17 +125,24 @@ export function OrderTracking({ order }: { order: Order }) {
           <ol className="space-y-3">
             {STEPS.map((step, index) => {
               const done = currentIndex >= index;
+              const at = done ? formatTimestamp(eventAt.get(step)) : null;
+
               return (
-                <li key={step} className="flex items-center gap-3 text-sm">
+                <li key={step} className="flex items-start gap-3 text-sm">
                   <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                       done ? "bg-success-500 text-neutral-0" : "bg-neutral-200 text-neutral-500"
                     }`}
                   >
                     {index + 1}
                   </span>
-                  <span className={done ? "font-medium" : "text-neutral-500"}>
-                    {pick(LABELS[step].mm, LABELS[step].en)}
+                  <span>
+                    <span className={done ? "font-medium" : "text-neutral-500"}>
+                      {pick(LABELS[step].mm, LABELS[step].en)}
+                    </span>
+                    {at ? (
+                      <span className="block text-xs text-neutral-500">{at}</span>
+                    ) : null}
                   </span>
                 </li>
               );
@@ -124,6 +184,21 @@ export function OrderTracking({ order }: { order: Order }) {
             <dt>{t("common.delivery")}</dt>
             <dd className="price">
               {order.delivery_fee_mmk === 0 ? pick("အခမဲ့", "Free") : MMK(order.delivery_fee_mmk)}
+            </dd>
+          </div>
+          {order.discount_mmk > 0 ? (
+            <div className="flex justify-between">
+              <dt>{pick("လျှော့စျေး", "Discount")}</dt>
+              <dd className="price">−{MMK(order.discount_mmk)}</dd>
+            </div>
+          ) : null}
+          <div className="flex justify-between">
+            <dt>{pick("ငွေပေးချေမှု", "Payment")}</dt>
+            <dd className="text-right">
+              {pick(paymentMethod?.mm ?? order.payment_method, paymentMethod?.en ?? order.payment_method)}
+              <span className="block text-xs text-neutral-500">
+                {pick(paymentStatus?.mm ?? order.payment_status, paymentStatus?.en ?? order.payment_status)}
+              </span>
             </dd>
           </div>
           <div className="flex justify-between border-t border-neutral-200 pt-2 text-base font-semibold">
