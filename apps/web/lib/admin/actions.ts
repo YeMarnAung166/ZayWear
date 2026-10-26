@@ -234,10 +234,39 @@ export async function savePaymentSettingsAction(formData: FormData): Promise<voi
         ? error.message
         : "Could not save the payment settings. Please try again.";
 
-    redirect(`/admin/settings/payments?error=${encodeURIComponent(message)}`);
+    redirect(`/admin/settings?tab=payments&error=${encodeURIComponent(message)}`);
   }
 
-  revalidatePath("/admin/settings/payments");
+  revalidatePath("/admin/settings");
   revalidatePath("/", "layout");
-  redirect("/admin/settings/payments?updated=1");
+  redirect("/admin/settings?tab=payments&updated=1");
+}
+
+export async function saveStoreSettingsAction(formData: FormData): Promise<void> {
+  await requireAdminSession();
+
+  const text = (key: string) => String(formData.get(key) ?? "").trim();
+  const integer = (key: string) => Number.parseInt(text(key), 10);
+
+  try {
+    await adminFetch("/admin/settings/store", {
+      method: "PUT",
+      body: JSON.stringify({
+        free_delivery_threshold_mmk: integer("free_delivery_threshold_mmk"),
+        return_window_days: integer("return_window_days"),
+        support_telegram: text("support_telegram"),
+      }),
+    });
+  } catch (error) {
+    const message =
+      error instanceof AdminApiError
+        ? error.message
+        : "Could not save the store settings. Please try again.";
+
+    redirect(`/admin/settings?tab=store&error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+  redirect("/admin/settings?tab=store&updated=1");
 }

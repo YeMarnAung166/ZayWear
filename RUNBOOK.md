@@ -79,7 +79,7 @@ Use `localhost`, never `127.0.0.1`, in the browser: Next 16 only sends dev asset
 
 Local receipts use `storage/app/private` and a short-lived signed route, so no Supabase project is needed.
 
-1. Sign in at <http://localhost:3000/admin/settings/payments>.
+1. Sign in at <http://localhost:3000/admin/settings?tab=payments>.
 2. Enable **KBZPay**, enter an account name and a `09…` phone, and save.
 3. Checkout: KBZPay is now offered and the helper shows the same account. Place the order.
 4. On the success page, upload a JPG/PNG/PDF receipt (≤ 5 MB). The proof list shows **Under review**.
@@ -140,7 +140,7 @@ Shipping fee threshold, payment flags and receiving accounts, return window, and
 select key, value from settings;
 ```
 
-Change payment flags and wallet details at `/admin/settings/payments`; the save invalidates the public response cache. Other keys can still be changed with `php artisan tinker` or a small seeder update, then clear the API cache if values look stale:
+Change them at `/admin/settings`: the **Payments** tab holds the method flags and receiving accounts, and the **Store** tab holds the free-delivery threshold, return window, and support handle. Each save invalidates the public response cache. The old `/admin/settings/payments` URL redirects to the Payments tab. Other keys can still be changed with `php artisan tinker` or a small seeder update, then clear the API cache if values look stale:
 
 ```powershell
 php artisan cache:clear
@@ -215,7 +215,8 @@ Then, by hand:
 
 - Place a real COD order from the Vercel site. Tracking link, admin detail, and Telegram alert must all work.
 - Sign in at `https://<web>/admin`, confirm the order, attach a shipment, and move it to delivered.
-- Open `/admin/settings/payments`, enable KBZPay and Wave with the real merchant account names and phones, and save.
+- Open `/admin/settings?tab=payments`, enable KBZPay and Wave with the real merchant account names and phones, and save.
+- Open `/admin/settings?tab=store` and check the free-delivery threshold, return window, and support handle.
 - Place a real prepaid order from the Vercel site. Upload a receipt on the success page, then reject it from the admin; the customer must see the reason. Upload again, mark it paid, and confirm the order auto-confirms. `packed → shipped` must be blocked until payment is verified.
 - Send `/start pay_ZW-000123` to the bot from the customer's phone, enter the last four digits, upload a photo receipt, and press **Mark paid** on the admin alert.
 - Place one order from the bot on your phone.
@@ -263,9 +264,14 @@ COD flips to `paid` on `delivered`; a non-COD `returned` becomes `refunded`.
 
 Shipping a prepaid order is blocked until payment is `paid`. The same action is available as **Mark paid** on the Telegram order/proof alert.
 
-### Change payment settings
+### Change settings
 
-`/admin/settings/payments` controls the storefront, the footer, and the bot. Enabling KBZPay or Wave requires an account name and a valid `09…` phone; at least one method must stay usable. Saving invalidates the public API cache immediately. The receiving account is snapshotted onto each new order, so later changes do not rewrite existing instructions.
+`/admin/settings` controls the storefront, the footer, the bot, and the returns policy.
+
+- **Payments** tab: COD/KBZPay/Wave flags and receiving accounts. Enabling KBZPay or Wave requires an account name and a valid `09…` phone; at least one method must stay usable. The receiving account is snapshotted onto each new order, so later changes do not rewrite existing instructions.
+- **Store** tab: free-delivery threshold (`0` makes every order free), return window in days, and the support Telegram handle used on the contact page and in the bot help.
+
+Both tabs save independently and invalidate the public API cache immediately. `/admin/settings/payments` redirects to the Payments tab.
 
 ### Check the API without a browser
 
@@ -317,7 +323,7 @@ php artisan model:prune --model="App\Models\TelegramSession"
 | Prepaid receipt upload returns `503` | `SUPABASE_*` missing on Railway or the bucket is not private/exists | Create `payment-proofs`, set the three vars, redeploy |
 | **View receipt** 404 | Storage object missing or signed URL failed | Check the API log (`payment-proof.sign.failed`); the customer can send the receipt on Telegram |
 | `422` on `packed → shipped` | Prepaid order is still unpaid | Verify the transfer and **Mark payment received** first |
-| KBZPay/Wave missing at checkout | Flag off or account name/phone incomplete | Fix `/admin/settings/payments`; effective availability needs all three |
+| KBZPay/Wave missing at checkout | Flag off or account name/phone incomplete | Fix `/admin/settings?tab=payments`; effective availability needs all three |
 | Site shows placeholder products in production | `NEXT_PUBLIC_USE_MOCK=1` in the Vercel build | Remove it and rebuild |
 | Burmese text looks like `?????` in a terminal | Console encoding, not the data | Check with `curl` or the browser, not PowerShell `Get-Content` |
 | Sentry shows no events | DSN missing or the release never deployed | Check `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`, then `php artisan sentry:test` from a host that can reach Sentry |

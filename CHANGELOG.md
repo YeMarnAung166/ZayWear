@@ -1,5 +1,17 @@
 # CHANGELOG.md
 
+## 0.9.0 — 2026-10-26
+
+Admin settings hub: store configuration moves out of tinker.
+
+- `/admin/settings` replaces the top-level Payments nav item and uses tabs for **Payments** and **Store**; `/admin/settings/payments` redirects to the Payments tab, preserving success/error messages
+- Store tab: free-delivery threshold, return window, and support Telegram handle, saved through `GET|PUT /api/admin/settings/store`
+- Validation: threshold `0…10,000,000` (`0` makes every order free), window `1…30` days, optional handle normalised from `@handle` / `t.me` link to 5–32 letters, numbers, or underscores
+- Saving the store tab invalidates the public response cache, so `/api/config`, checkout, product copy, the contact page, and the bot update immediately
+- The returns policy now renders the configured window instead of a hardcoded 7 days
+- Admin nav becomes **Settings**; the payment form is unchanged apart from being reachable through the hub
+- Tests: 94 passing / 843 assertions
+
 ## 0.8.0 — 2026-10-26
 
 Prepaid checkout: KBZPay/Wave transfers verified by the merchant, not a wallet API.

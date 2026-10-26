@@ -240,6 +240,8 @@ Index `(order_id, status)`; UNIQUE `(order_id, telegram_file_id)`. Maximum five 
 
 Seeded keys: `free_delivery_threshold_mmk` (`80000`), `currency` (`MMK`), `cod_enabled` (`true`), `kbzpay_enabled`, `wave_enabled`, `kbzpay_account_name`, `kbzpay_phone`, `wave_account_name`, `wave_phone`, `return_window_days` (`7`), `support_telegram`, `order_prefix` (`ZW`).
 
+The free-delivery threshold, return window, and support handle are editable at `/admin/settings` (Store tab); the payment flags and wallet accounts live on the Payments tab. Each save bumps the public response cache version. `currency` and `order_prefix` remain fixed for now.
+
 ---
 
 ## 3. Order State Machine
@@ -260,7 +262,7 @@ pending ──► confirmed ──► packed ──► shipped ──► deliver
 | `confirmed` | `packed`, `cancelled` |
 | `packed` | `shipped`, `cancelled` |
 | `shipped` | `delivered`, `refused` |
-| `delivered` | `returned` (within `return_window_days`) |
+| `delivered` | `returned` (admin judgement; `return_window_days` is customer-facing policy copy, not an API guard) |
 | `refused` | `returned` |
 | `cancelled` | — terminal |
 | `returned` | — terminal |

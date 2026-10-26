@@ -108,6 +108,12 @@ export type AdminPaymentSettings = {
   wave_phone: string;
 };
 
+export type AdminStoreSettings = {
+  free_delivery_threshold_mmk: number;
+  return_window_days: number;
+  support_telegram: string;
+};
+
 export type AdminOrderList = {
   data: AdminOrderSummary[];
   meta: {

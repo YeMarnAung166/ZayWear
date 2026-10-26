@@ -270,6 +270,8 @@ Header: `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401`. Rate 
 | `GET` | `/admin/payment-proofs/{proof}/url` | Returns `{ "url", "expires_at" }` for a private receipt; the URL expires in 10 minutes |
 | `GET` | `/admin/settings/payments` | Raw payment flags and receiving-account fields |
 | `PUT` | `/admin/settings/payments` | Saves all seven fields; enabling a wallet requires an account name and a valid `09…` phone, and at least one method must stay usable |
+| `GET` | `/admin/settings/store` | Free-delivery threshold, return window, and support Telegram handle |
+| `PUT` | `/admin/settings/store` | Saves all three fields; threshold `0…10,000,000`, window `1…30` days, optional Telegram username |
 | `GET` | `/admin/metrics` | Orders today/7d/30d, refusal rate and reasons, median delivery hours, delivered revenue, status counts |
 
 List response `meta`: `current_page`, `last_page`, `per_page`, `total`, and `status_counts` (one entry per status present, e.g. `{ "pending": 3, "delivered": 12 }`). `status_counts` ignores the payment filters.
@@ -305,6 +307,22 @@ Invalid transitions return `422` (for example `delivered → pending`). A COD or
 ```
 
 `PUT` requires all seven fields. Phones accept `+959…`, `959…`, or `09…` and are stored normalised to `09…`. A wallet may be enabled only with a non-empty account name and a valid phone; at least one method must remain usable. Saving bumps the public response cache version, so `GET /config` and the storefront change immediately.
+
+### Store settings
+
+`GET` and `PUT /admin/settings/store` share one shape:
+
+```json
+{
+  "data": {
+    "free_delivery_threshold_mmk": 80000,
+    "return_window_days": 7,
+    "support_telegram": "zaywear_support"
+  }
+}
+```
+
+`PUT` requires all three fields. `free_delivery_threshold_mmk` is `0…10,000,000`; `0` makes every order eligible for free delivery. `return_window_days` is `1…30` and drives the product-page and returns-policy copy. `support_telegram` is optional: it accepts `@handle`, `handle`, or a `t.me` link, is stored without `@`, and must be 5–32 letters, numbers, or underscores. Saving bumps the public response cache version, so `GET /config`, the storefront, and the bot change immediately.
 
 ---
 

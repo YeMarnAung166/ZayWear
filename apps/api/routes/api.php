@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AdminOrderController;
 use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\AdminPaymentSettingsController;
 use App\Http\Controllers\Api\AdminSessionController;
+use App\Http\Controllers\Api\AdminStoreSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CategoryController;
@@ -83,5 +84,7 @@ Route::middleware([EnsureAdminToken::class, 'throttle:admin'])->prefix('admin')-
     Route::get('/payment-proofs/{proof}/url', [AdminPaymentController::class, 'proofUrl']);
     Route::get('/settings/payments', [AdminPaymentSettingsController::class, 'show']);
     Route::put('/settings/payments', [AdminPaymentSettingsController::class, 'update']);
+    Route::get('/settings/store', [AdminStoreSettingsController::class, 'show']);
+    Route::put('/settings/store', [AdminStoreSettingsController::class, 'update']);
     Route::get('/metrics', [AdminOrderController::class, 'metrics']);
 });

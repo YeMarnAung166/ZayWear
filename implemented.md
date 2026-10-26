@@ -26,7 +26,7 @@
 
 ### API — endpoints
 - Public: `GET /api/config`, `/categories`, `/products` (filter + sort + `q`), `/products/{slug}`, `/products/{slug}/size-chart`, `/townships`, `POST /orders`, `GET /orders/{number}/{token}`, `GET /orders/{number}/{token}/payment`, `POST /orders/{number}/{token}/payment-proof`
-- Admin JSON (bearer token): `GET /admin/orders` (status + payment filters), `/admin/orders/{id}`, `PATCH /admin/orders/{id}/status`, `POST /admin/orders/{id}/shipment`, `POST /admin/orders/{id}/payment/verify`, `POST /admin/orders/{id}/payment/reject`, `GET /admin/payment-proofs/{proof}/url`, `GET|PUT /admin/settings/payments`, `GET /admin/metrics`
+- Admin JSON (bearer token): `GET /admin/orders` (status + payment filters), `/admin/orders/{id}`, `PATCH /admin/orders/{id}/status`, `POST /admin/orders/{id}/shipment`, `POST /admin/orders/{id}/payment/verify`, `POST /admin/orders/{id}/payment/reject`, `GET /admin/payment-proofs/{proof}/url`, `GET|PUT /admin/settings/payments`, `GET|PUT /admin/settings/store`, `GET /admin/metrics`
 - Telegram webhook: full conversational COD + prepaid order flow (see below); `/start`, `/shop`, `/pay`, `/status ZW-…`, `/cancel`, `/help`, `/id`
 
 ### Core logic
@@ -139,10 +139,20 @@
 - Telegram: `pm:` method buttons, `/pay ZW-000123`, `start=pay_ZW-000123`, last-four phone gate (three attempts), photo/PDF upload with `telegram_file_id` dedupe, a proof alert to the admin chat, and `adm:paid`
 - Storefront footer and terms describe the live methods; `GET /config` exposes effective availability and receiving-account fields
 
+### Admin settings hub (2026-10-26)
+- `/admin/settings` is now the single settings area, with **Payments** and **Store** tabs; `/admin/settings/payments` redirects to the Payments tab and forwards `updated`/`error`
+- Payments tab keeps the existing method flags, receiving accounts, and validation unchanged
+- Store tab edits the free-delivery threshold, return window, and support Telegram handle through `GET|PUT /api/admin/settings/store`
+- Validation: threshold `0…10,000,000` (`0` makes every order free), window `1…30`, optional handle normalised from `@handle` or a `t.me` link to 5–32 letters, numbers, or underscores
+- Both saves bump the public response cache version; `revalidatePath("/", "layout")` refreshes the storefront
+- The returns policy interpolates the configured window in Burmese and English instead of hardcoding 7 days
+- Admin nav item changes from **Payments** to **Settings**; the payment form was extracted into `components/admin/PaymentSettingsForm.tsx` alongside the new `StoreSettingsForm.tsx`
+
 ### Verification
 - `npm run build` — TypeScript clean; `npm run lint` clean
-- `php artisan test` — 87 passing / 793 assertions, including the wishlist, B1 admin, payment, and Telegram prepaid tests
+- `php artisan test` — 94 passing / 843 assertions, including the wishlist, B1 admin, payment, settings, and Telegram prepaid tests
 - B1 admin tests cover password accept/reject, the login limiter, detail pricing/contact/`allowed_transitions`, list `status_counts` and `per_page`, and shipment COD capture
+- Settings tests cover the store defaults, handle normalisation, range validation, and cache invalidation of `/api/config`
 - Payment tests cover effective method availability, settings validation and cache invalidation, the public payment payload, receipt upload limits/types, mark-paid auto-confirm and receipt approval, duplicate wallet references, rejection with a reason, and the shipping guard
 - Telegram tests cover enabled prepaid methods, unavailable-method rejection, the full prepaid order + receipt + `adm:paid` flow, the last-four phone gate, and file-ID dedupe
 - Local admin E2E in Chrome: wrong password rejected, sign in, `ZW-000023` pending → confirmed → packed → shipment saved → shipped → delivered, payment `paid`, 5 timeline events; metrics rendered; status/date/search filters, logout, httpOnly cookie, and a 375px layout with no horizontal overflow
@@ -160,7 +170,7 @@
 |---|---|
 | Delivery fee | Per township, snapshotted on the order |
 | Fee tiers | `1500` metro / `2500` secondary / `3500` remote |
-| Free delivery | At `80000 MMK` subtotal (`settings.free_delivery_threshold_mmk`) |
+| Free delivery | At `80000 MMK` subtotal by default (`settings.free_delivery_threshold_mmk`, editable in the admin) |
 | Township scope | Only courier-served townships, `is_active` flag |
 | Order states | `pending → confirmed → packed → shipped → delivered` + `cancelled`, `refused`, `returned` |
 | Payment states | `unpaid`, `paid`, `failed`, `refunded`; COD → `paid` on `delivered`; prepaid → `paid` only after manual verification |
