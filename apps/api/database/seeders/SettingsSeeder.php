@@ -15,6 +15,10 @@ class SettingsSeeder extends Seeder
             'cod_enabled' => true,
             'kbzpay_enabled' => false,
             'wave_enabled' => false,
+            'kbzpay_account_name' => '',
+            'kbzpay_phone' => '',
+            'wave_account_name' => '',
+            'wave_phone' => '',
             'return_window_days' => 7,
             // Empty until the founder creates a support account; the site hides the link when blank.
             'support_telegram' => '',
@@ -22,7 +26,8 @@ class SettingsSeeder extends Seeder
         ];
 
         foreach ($settings as $key => $value) {
-            Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
+            // Do not overwrite values the merchant changed in the admin.
+            Setting::query()->firstOrCreate(['key' => $key], ['value' => $value]);
         }
     }
 }

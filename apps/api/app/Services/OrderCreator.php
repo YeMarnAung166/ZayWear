@@ -20,13 +20,20 @@ use Illuminate\Validation\ValidationException;
  */
 class OrderCreator
 {
-    public function __construct(private readonly OrderPricing $pricing) {}
+    public function __construct(
+        private readonly OrderPricing $pricing,
+        private readonly PaymentMethods $paymentMethods,
+    ) {}
 
     /**
      * @param  array{customer: array{name: string, phone: string}, township_id: int, address_line: string, landmark: string, note?: string|null, payment_method: string, items: array<int, array{variant_id: int, qty: int}>}  $data
      */
     public function create(array $data, ?string $idempotencyKey = null, string $channel = 'web'): Order
     {
+        // The API and bot share this path, so a disabled or incomplete method
+        // cannot slip through by calling the endpoint directly.
+        $this->paymentMethods->assertAvailable($data['payment_method']);
+
         $township = Township::query()->active()->find($data['township_id']);
 
         if (! $township) {
@@ -123,11 +130,22 @@ class OrderCreator
                 'created_at' => Carbon::now(),
             ]);
 
-            $order->payments()->create([
+            $payment = $order->payments()->create([
                 'provider' => $data['payment_method'],
                 'amount_mmk' => $quote['total_mmk'],
                 'status' => 'pending',
             ]);
+
+            // Snapshot the receiving account shown at order time so a later
+            // settings change cannot rewrite what the customer was told.
+            if ($this->paymentMethods->isPrepaid($data['payment_method'])) {
+                $payment->update([
+                    'raw_payload' => [
+                        'instructions' => $this->paymentMethods->account($data['payment_method']),
+                        'reference' => $order->order_number,
+                    ],
+                ]);
+            }
 
             return $order;
         });

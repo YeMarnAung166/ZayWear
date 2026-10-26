@@ -3,10 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Order;
+use App\Models\PaymentProof;
 use App\Models\ProductVariant;
+use App\Models\Setting;
+use App\Models\TelegramSession;
 use App\Models\Township;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TelegramBotTest extends TestCase
@@ -22,6 +27,8 @@ class TelegramBotTest extends TestCase
         parent::setUp();
 
         $this->seed();
+
+        Storage::fake('local');
 
         config([
             'shop.telegram_bot_token' => 'test-token',
@@ -105,7 +112,31 @@ class TelegramBotTest extends TestCase
             && str_contains((string) $request['text'], $order->order_number));
     }
 
-    public function test_the_payment_step_offers_cod_and_rejects_prepay(): void
+    public function test_the_payment_step_offers_enabled_prepaid_methods(): void
+    {
+        $this->enableKbzpay();
+
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+
+        $this->assertTrue($this->lastMessageKeyboardContains('pm:kbzpay'));
+        $this->assertTrue($this->lastMessageKeyboardContains('pm:cod'));
+
+        $this->press('pm:kbzpay');
+
+        $this->assertStringContainsString('MMK (KBZPay)', $this->lastMessage());
+        $this->assertSame(0, Order::query()->count());
+    }
+
+    public function test_a_prepaid_method_cannot_be_selected_while_it_is_unavailable(): void
     {
         $variant = $this->variantWithStock(5);
         $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
@@ -118,16 +149,95 @@ class TelegramBotTest extends TestCase
         $this->sendText('No 45, Inya Road, Bahan');
         $this->sendText('Near Bahan market');
 
-        $this->assertStringContainsString('KBZPay', $this->lastMessage());
-
         $this->press('pm:kbzpay');
 
-        $this->assertStringContainsString('မရနိုင်သေးပါ', $this->lastMessage());
+        $this->assertStringContainsString('မရနိုင်တော့ပါ', $this->lastMessage());
         $this->assertSame(0, Order::query()->count());
+    }
 
-        $this->press('pm:cod');
+    public function test_a_telegram_prepaid_order_accepts_a_receipt_and_can_be_marked_paid(): void
+    {
+        config(['shop.telegram_admin_chat_id' => (string) self::ADMIN_CHAT_ID]);
+        $this->enableKbzpay();
 
-        $this->assertStringContainsString('MMK (COD)', $this->lastMessage());
+        // Replace the permissive fake from setUp so the Telegram file
+        // download returns a real image body for MIME detection.
+        Http::swap(new Factory);
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/getFile')) {
+                return Http::response([
+                    'ok' => true,
+                    'result' => ['file_path' => 'photos/receipt.png'],
+                ]);
+            }
+
+            if (str_contains($request->url(), '/file/bot')) {
+                return Http::response(
+                    base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3r5QAAAABJRU5ErkJggg=='),
+                    200,
+                    ['Content-Type' => 'image/png'],
+                );
+            }
+
+            return Http::response(['ok' => true, 'result' => true]);
+        });
+
+        $variant = $this->variantWithStock(5);
+        $township = Township::query()->where('name_en', 'Bahan')->firstOrFail();
+
+        $this->startAtQuantity($variant);
+        $this->press('q:1');
+        $this->sendText('Thiri Aung');
+        $this->sendText('09771234567');
+        $this->press('t:'.$township->id);
+        $this->sendText('No 45, Inya Road, Bahan');
+        $this->sendText('Near Bahan market');
+        $this->press('pm:kbzpay');
+        $this->press('ok');
+
+        $order = Order::query()->sole();
+
+        $this->assertSame('kbzpay', $order->payment_method);
+        $this->assertSame(Order::STATUS_PENDING, $order->status);
+        $this->assertSame(Order::PAYMENT_UNPAID, $order->payment_status);
+
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && (string) $request['chat_id'] === (string) self::CHAT_ID
+            && str_contains((string) $request['text'], 'အကောင့်နာမည် — ZayWear Store')
+            && str_contains((string) $request['text'], 'ပြေစာ'));
+
+        // The initial admin alert already offers the manual verification path.
+        Http::assertSent(fn ($request): bool => str_contains($request->url(), 'sendMessage')
+            && (string) $request['chat_id'] === (string) self::ADMIN_CHAT_ID
+            && $this->keyboardContains($request['reply_markup'] ?? [], 'adm:paid:'.$order->id));
+
+        $session = TelegramSession::query()->where('chat_id', self::CHAT_ID)->sole();
+        $this->assertSame('proof', $session->state['step']);
+
+        $this->sendPhoto('telegram-file-1');
+
+        $proof = $order->paymentProofs()->sole();
+
+        $this->assertSame(PaymentProof::SOURCE_TELEGRAM, $proof->source);
+        $this->assertSame('telegram-file-1', $proof->telegram_file_id);
+        $this->assertSame(PaymentProof::STATUS_PENDING, $proof->status);
+        $this->assertSame('image/png', $proof->mime_type);
+        Storage::disk('local')->assertExists($proof->path);
+
+        Http::assertSent(fn ($request): bool => str_contains(
+            (string) ($request['caption'] ?? $request['text'] ?? ''),
+            'ပြေစာ အသစ်',
+        )
+            && (string) $request['chat_id'] === (string) self::ADMIN_CHAT_ID
+            && $this->keyboardContains($request['reply_markup'] ?? [], 'adm:paid:'.$order->id));
+
+        $this->press('adm:paid:'.$order->id, self::ADMIN_CHAT_ID);
+
+        $order->refresh();
+
+        $this->assertSame(Order::PAYMENT_PAID, $order->payment_status);
+        $this->assertSame(Order::STATUS_CONFIRMED, $order->status);
+        $this->assertSame(PaymentProof::STATUS_APPROVED, $proof->fresh()->status);
     }
 
     public function test_it_orders_more_than_one_item(): void
@@ -337,6 +447,43 @@ class TelegramBotTest extends TestCase
             ->values();
 
         return (string) $messages->last();
+    }
+
+    private function lastMessageKeyboardContains(string $callbackData): bool
+    {
+        $requests = collect(Http::recorded())
+            ->map(fn ($pair) => $pair[0])
+            ->filter(fn ($request): bool => str_contains($request->url(), 'sendMessage'))
+            ->values();
+
+        $last = $requests->last();
+
+        return $last !== null && $this->keyboardContains($last['reply_markup'] ?? [], $callbackData);
+    }
+
+    private function sendPhoto(string $fileId, int $updateId = 1): void
+    {
+        $this->update([
+            'update_id' => $updateId,
+            'message' => [
+                'message_id' => $updateId,
+                'chat' => ['id' => self::CHAT_ID],
+                'photo' => [
+                    ['file_id' => $fileId, 'file_size' => 1024, 'width' => 1, 'height' => 1],
+                ],
+            ],
+        ]);
+    }
+
+    private function enableKbzpay(): void
+    {
+        foreach ([
+            'kbzpay_enabled' => true,
+            'kbzpay_account_name' => 'ZayWear Store',
+            'kbzpay_phone' => '09771234567',
+        ] as $key => $value) {
+            Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
+        }
     }
 
     /**

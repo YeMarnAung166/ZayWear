@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { PaymentPanel } from "@/components/PaymentPanel";
 import { useI18n } from "@/lib/i18n";
 import { MMK } from "@/lib/format";
+import { PAYMENT_METHOD_LABELS } from "@/lib/order-status";
 
 type Snapshot = {
   order_number: string;
@@ -67,6 +69,12 @@ export function OrderSuccess({ orderNumber }: { orderNumber: string }) {
     return <p className="py-16 text-center text-sm text-neutral-500">{t("common.loading")}</p>;
   }
 
+  const prepaid = snapshot ? snapshot.payment_method !== "cod" : false;
+  const trackingToken = snapshot
+    ? (snapshot.tracking_path.split("/").filter(Boolean).pop() ?? "")
+    : "";
+  const paymentMethod = snapshot ? PAYMENT_METHOD_LABELS[snapshot.payment_method] : null;
+
   return (
     <div className="mx-auto max-w-xl space-y-6 py-6">
       <div className="rounded-lg bg-success-500/10 p-5 text-center">
@@ -75,12 +83,21 @@ export function OrderSuccess({ orderNumber }: { orderNumber: string }) {
         </p>
         <p className="price mt-2 text-2xl font-bold">{orderNumber}</p>
         <p className="mt-2 text-sm text-neutral-500">
-          {pick(
-            "၂၄ နာရီအတွင်း ဖုန်းဆက်၍ အတည်ပြုပါမည်။",
-            "We will call you within 24 hours to confirm.",
-          )}
+          {prepaid
+            ? pick(
+                "ငွေလွှဲပြီး ပြေစာ တင်ပေးပါ။ စစ်ဆေးအတည်ပြုပြီးမှ ပို့ဆောင်ပါမည်။",
+                "Transfer the total and upload your receipt. We ship once the payment is verified.",
+              )
+            : pick(
+                "၂၄ နာရီအတွင်း ဖုန်းဆက်၍ အတည်ပြုပါမည်။",
+                "We will call you within 24 hours to confirm.",
+              )}
         </p>
       </div>
+
+      {snapshot && trackingToken && prepaid ? (
+        <PaymentPanel orderNumber={orderNumber} token={trackingToken} />
+      ) : null}
 
       {snapshot ? (
         <>
@@ -110,7 +127,9 @@ export function OrderSuccess({ orderNumber }: { orderNumber: string }) {
             </div>
             <p className="text-xs text-neutral-500">
               {pick(snapshot.township_mm, snapshot.township_en)} ·{" "}
-              {snapshot.payment_method.toUpperCase()}
+              {paymentMethod
+                ? pick(paymentMethod.mm, paymentMethod.en)
+                : snapshot.payment_method}
             </p>
           </dl>
 

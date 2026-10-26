@@ -1,7 +1,7 @@
 # implemented.md — What Is Actually Done
 
 **Updated:** 2026-10-26
-**Phase:** V2 — customer accounts (A1), order history (A2), wishlist (A5), Next.js admin (B1)
+**Phase:** V2 — customer accounts (A1), order history (A2), wishlist (A5), Next.js admin (B1), prepaid checkout
 **Next:** remaining V2 items (A3 promo codes is queued); V1 still needs the real eComReg number
 
 ---
@@ -25,9 +25,9 @@
 - Seeders: `SettingsSeeder`, `TownshipSeeder` (41 mock townships, fee tiers 1500/2500/3500), `CategorySeeder` (men, women), `SizeChartSeeder`, `ProductSeeder` (8 mock products × 2 colours × 4 sizes, with deliberate zero-stock combinations)
 
 ### API — endpoints
-- Public: `GET /api/config`, `/categories`, `/products` (filter + sort + `q`), `/products/{slug}`, `/products/{slug}/size-chart`, `/townships`, `POST /orders`, `GET /orders/{number}/{token}`
-- Admin JSON (bearer token): `GET /admin/orders`, `/admin/orders/{id}`, `PATCH /admin/orders/{id}/status`, `POST /admin/orders/{id}/shipment`, `GET /admin/metrics`
-- Telegram webhook: full conversational COD order flow (see below); `/start`, `/shop`, `/status ZW-…`, `/cancel`, `/help`, `/id`
+- Public: `GET /api/config`, `/categories`, `/products` (filter + sort + `q`), `/products/{slug}`, `/products/{slug}/size-chart`, `/townships`, `POST /orders`, `GET /orders/{number}/{token}`, `GET /orders/{number}/{token}/payment`, `POST /orders/{number}/{token}/payment-proof`
+- Admin JSON (bearer token): `GET /admin/orders` (status + payment filters), `/admin/orders/{id}`, `PATCH /admin/orders/{id}/status`, `POST /admin/orders/{id}/shipment`, `POST /admin/orders/{id}/payment/verify`, `POST /admin/orders/{id}/payment/reject`, `GET /admin/payment-proofs/{proof}/url`, `GET|PUT /admin/settings/payments`, `GET /admin/metrics`
+- Telegram webhook: full conversational COD + prepaid order flow (see below); `/start`, `/shop`, `/pay`, `/status ZW-…`, `/cancel`, `/help`, `/id`
 
 ### Core logic
 - `OrderStateMachine`: explicit transition matrix, timestamps per state, `order_events` audit row, invalid transitions → `422`
@@ -37,6 +37,9 @@
 - Stock decremented inside the order transaction with `lockForUpdate`; over-quantity → `422` naming the size
 - Rate limiters isolated by name: `api` 300/min (reads), `orders` 10/min, `tracking` 60/min. Inline `throttle:x,y` rules shared one counter per IP and blocked checkout when server-side rendering warmed the read cache — fixed
 - Order number derived from the primary key (`ZW-` + 6 digits), portable across SQLite and Postgres
+- `PaymentMethods` is the single source of availability: COD from its flag, KBZPay/Wave only when the flag **and** account name/phone are complete; `OrderCreator` snapshots the receiving account onto the payment row
+- `PaymentVerification` marks a prepaid order paid inside a locked transaction, dedupes the optional wallet transaction ID, approves pending receipts, and confirms a `pending` order
+- `OrderStateMachine` blocks `packed → shipped` for an unpaid prepaid order; COD settles on delivery and a prepaid return becomes `refunded`
 
 ### Telegram bot
 - Webhook `POST /api/telegram/webhook` verifies `X-Telegram-Bot-Api-Secret-Token` against `TELEGRAM_WEBHOOK_SECRET`, always answers `200` so Telegram does not retry a handled update
@@ -62,7 +65,7 @@
 - Noto Sans Myanmar + Inter via `next/font`, DESIGN.md tokens as Tailwind 4 `@theme`
 - Product grid, PDP with colour/size selector (disabled out-of-stock sizes), size-guide modal, quantity stepper, Telegram order CTA, add-to-cart
 - Cart in `localStorage` with stock caps, free-delivery nudge, checkout CTA
-- COD checkout: validation, township select ordered Yangon → Mandalay → Naypyidaw → rest and showing the fee inline, disabled KBZPay/Wave, `crypto.randomUUID()` idempotency key, server error surfacing
+- Checkout: validation, township select ordered Yangon → Mandalay → Naypyidaw → rest and showing the fee inline, enabled methods only with prepaid account helper, `crypto.randomUUID()` idempotency key, server error surfacing
 - Success page reads a session snapshot, shows the order summary, and offers **Copy tracking link** instead of a raw token URL
 - Tracking page: 5-step timeline, masked phone, item/total breakdown, terminal states including `refused` and `returned`
 - Search page, policy pages (returns, terms, privacy), contact page, 404
@@ -123,10 +126,25 @@
 - Admin JSON additions: totals and discount, note, placed-via, township name/region, full phone on detail (masked in the list), shipment COD and dispatch fields, `allowed_transitions`, list `status_counts`, and `per_page`
 - Server actions revalidate the list, detail, and metrics after a change; API errors surface on the detail page instead of a blank screen
 
+### Prepaid checkout — KBZPay/Wave (2026-10-26)
+- `PaymentMethods` treats a wallet as available only when its setting is on **and** the account name and `09…` phone are present, so a half-configured wallet never reaches checkout, the footer, or the bot
+- Checkout lists only available methods, defaults to the first, shows the receiving account and prepaid helper copy, and rejects a method that became unavailable before submit
+- Success and tracking pages render a payment panel: amount, snapshotted account/reference, receipt upload (JPG/PNG/PDF ≤ 5 MB), proof history, latest rejection reason, and a Telegram fallback link
+- `payment_proofs` migration/model plus `PaymentProofStorage`: private Supabase bucket `payment-proofs`, `orders/{order_number}/{uuid}.{ext}`, 10-minute signed URLs, local-disk fallback only in local/testing
+- Public `GET /orders/{number}/{token}/payment` and `POST …/payment-proof`; uploads need the signed token, are capped at five per order and 5/min/IP, and production returns `503` rather than writing to Railway's ephemeral disk
+- Admin Payments page at `/admin/settings/payments`; saving validates the account/phone pair, keeps at least one method usable, and invalidates the public API cache
+- Admin order detail: payment card, receipt view/reject (reason required and shown to the customer), mark paid with optional wallet transaction ID; the list filters by payment status and method
+- `PaymentVerification` marks the payment row paid, stores `raw_payload.verification`, approves pending receipts, and moves a `pending` order to `confirmed`; closed orders reject the action
+- `OrderStateMachine` rejects `packed → shipped` for an unpaid prepaid order; COD is unchanged, and a prepaid `returned` becomes `refunded`
+- Telegram: `pm:` method buttons, `/pay ZW-000123`, `start=pay_ZW-000123`, last-four phone gate (three attempts), photo/PDF upload with `telegram_file_id` dedupe, a proof alert to the admin chat, and `adm:paid`
+- Storefront footer and terms describe the live methods; `GET /config` exposes effective availability and receiving-account fields
+
 ### Verification
-- `npm run build` — 29 routes, TypeScript clean; `npm run lint` clean
-- `php artisan test` — 70 passing / 618 assertions, including the wishlist and B1 admin tests
+- `npm run build` — TypeScript clean; `npm run lint` clean
+- `php artisan test` — 87 passing / 793 assertions, including the wishlist, B1 admin, payment, and Telegram prepaid tests
 - B1 admin tests cover password accept/reject, the login limiter, detail pricing/contact/`allowed_transitions`, list `status_counts` and `per_page`, and shipment COD capture
+- Payment tests cover effective method availability, settings validation and cache invalidation, the public payment payload, receipt upload limits/types, mark-paid auto-confirm and receipt approval, duplicate wallet references, rejection with a reason, and the shipping guard
+- Telegram tests cover enabled prepaid methods, unavailable-method rejection, the full prepaid order + receipt + `adm:paid` flow, the last-four phone gate, and file-ID dedupe
 - Local admin E2E in Chrome: wrong password rejected, sign in, `ZW-000023` pending → confirmed → packed → shipment saved → shipped → delivered, payment `paid`, 5 timeline events; metrics rendered; status/date/search filters, logout, httpOnly cookie, and a 375px layout with no horizontal overflow
 - Wishlist tests cover guest rejection, save/list, idempotent saves, a new session, customer scoping, idempotent delete, unknown/inactive products, and inactive products disappearing from existing lists
 - `vendor/bin/pint --dirty` clean
@@ -145,11 +163,13 @@
 | Free delivery | At `80000 MMK` subtotal (`settings.free_delivery_threshold_mmk`) |
 | Township scope | Only courier-served townships, `is_active` flag |
 | Order states | `pending → confirmed → packed → shipped → delivered` + `cancelled`, `refused`, `returned` |
-| Payment states | `unpaid`, `paid`, `failed`, `refunded`; COD → `paid` on `delivered` |
+| Payment states | `unpaid`, `paid`, `failed`, `refunded`; COD → `paid` on `delivered`; prepaid → `paid` only after manual verification |
+| Prepaid methods | KBZPay/Wave transfer to the merchant wallet, receipt upload, manual verification; no merchant API |
+| Shipping guard | `packed → shipped` rejected while a prepaid order is unpaid |
 | Order number | `ZW-000123`, derived from the primary key (no sequence) |
 | Tracking | Stateless HMAC token in the path, 90 days, `no-referrer` |
 | Admin | Next.js `/admin` (B1) with a signed httpOnly cookie; Laravel Blade kept one release as fallback |
-| Bot flow | 8-step chat order + confirm (product → size → qty → name → phone → township → address → landmark); township picker; real COD order via shared `OrderCreator` |
+| Bot flow | product → size → qty → name → phone → township → address → landmark → payment method → confirm; COD or prepaid receipt; real order via shared `OrderCreator` |
 | Analytics | DB-computed business metrics + Plausible |
 | Stack | Next.js 16 / React 19 / Tailwind 4 / Laravel 13 / PHP 8.4 |
 | Images | Local SVG mock now; Supabase Storage `products` bucket later |
@@ -160,12 +180,12 @@
 
 - Permanent webhook host — the bot currently uses a `localtunnel` URL that changes when the tunnel restarts; deploy or use a named tunnel
 - Rotate the bot token in BotFather before production — the current token was pasted into chat
-- Real KBZPay/Wave prepay — disabled at launch via config, radios shown disabled
+- Real KBZPay/Wave go-live — code and admin settings are ready, but the private `payment-proofs` bucket, Railway `SUPABASE_*` envs, and the merchant's account names/phones are not set yet
 - Plausible, Sentry, uptime monitoring
 - Lighthouse 3G run and page-weight measurement still pending on production
 - Tracking page error copy is English-only; needs a Burmese variant
 - Bot admin alerts land in the founder's private chat until a Telegram group is created
-- Deploy: Supabase (Postgres + Storage), Railway, Vercel; queue worker
+- Deploy the prepaid release: Supabase bucket + Railway envs, API, web, then the prepaid smoke test; queue worker
 - `database/data/townships.csv` — waiting on the courier's coverage list
 
 ## Mock Data In Use
@@ -183,5 +203,5 @@
 1. Courier partner + served-township list with fee tiers
 2. Product catalog, prices, stock, and photography
 3. Domain and eComReg application
-4. Whether prepay (KBZPay/Wave) ships at launch
+4. Real KBZPay/Wave account names and phones, plus a private `payment-proofs` bucket and Railway Supabase keys
 5. A permanent HTTPS host for the webhook (deploy, or a named Cloudflare tunnel)

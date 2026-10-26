@@ -2,12 +2,15 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminOrderController;
+use App\Http\Controllers\Api\AdminPaymentController;
+use App\Http\Controllers\Api\AdminPaymentSettingsController;
 use App\Http\Controllers\Api\AdminSessionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ConfigController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PaymentProofController;
 use App\Http\Controllers\Api\TelegramController;
 use App\Http\Controllers\Api\TownshipController;
 use App\Http\Controllers\Api\WishlistController;
@@ -25,12 +28,22 @@ Route::middleware('throttle:api')->group(function () {
         Route::get('/config', [ConfigController::class, 'show']);
     });
 
+    Route::get('/orders/{orderNumber}/{token}/payment', [PaymentProofController::class, 'show'])
+        ->middleware('throttle:tracking');
     Route::get('/orders/{orderNumber}/{token}', [OrderController::class, 'show'])
         ->middleware('throttle:tracking');
     Route::post('/telegram/webhook', [TelegramController::class, 'webhook']);
 });
 
 Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
+
+Route::post('/orders/{orderNumber}/{token}/payment-proof', [PaymentProofController::class, 'store'])
+    ->middleware('throttle:payment-proofs');
+
+// Local/test fallback only: the controller refuses to serve outside local/testing.
+Route::get('/payment-proofs/{proof}/file', [PaymentProofController::class, 'localFile'])
+    ->name('payment-proofs.local')
+    ->middleware('signed');
 
 Route::post('/admin/session', [AdminSessionController::class, 'store'])
     ->middleware('throttle:admin-login');
@@ -65,5 +78,10 @@ Route::middleware([EnsureAdminToken::class, 'throttle:admin'])->prefix('admin')-
     Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
     Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
     Route::post('/orders/{id}/shipment', [AdminOrderController::class, 'shipment']);
+    Route::post('/orders/{id}/payment/verify', [AdminPaymentController::class, 'verify']);
+    Route::post('/orders/{id}/payment/reject', [AdminPaymentController::class, 'reject']);
+    Route::get('/payment-proofs/{proof}/url', [AdminPaymentController::class, 'proofUrl']);
+    Route::get('/settings/payments', [AdminPaymentSettingsController::class, 'show']);
+    Route::put('/settings/payments', [AdminPaymentSettingsController::class, 'update']);
     Route::get('/metrics', [AdminOrderController::class, 'metrics']);
 });

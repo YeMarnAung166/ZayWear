@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -78,6 +79,98 @@ class TelegramClient
     }
 
     /**
+     * @param  array<string, mixed>|null  $keyboard
+     */
+    public function sendPhoto(int|string $chatId, string $fileId, string $caption, ?array $keyboard = null): void
+    {
+        $payload = ['chat_id' => $chatId, 'photo' => $fileId, 'caption' => $caption];
+
+        if ($keyboard !== null) {
+            $payload['reply_markup'] = $keyboard;
+        }
+
+        $this->call('sendPhoto', $payload);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $keyboard
+     */
+    public function sendDocument(int|string $chatId, string $fileId, string $caption, ?array $keyboard = null): void
+    {
+        $payload = ['chat_id' => $chatId, 'document' => $fileId, 'caption' => $caption];
+
+        if ($keyboard !== null) {
+            $payload['reply_markup'] = $keyboard;
+        }
+
+        $this->call('sendDocument', $payload);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getFile(string $fileId): ?array
+    {
+        if ($this->token === '') {
+            Log::info('telegram.getFile.skipped', ['file_id' => $fileId]);
+
+            return null;
+        }
+
+        $response = $this->http()->get(
+            "https://api.telegram.org/bot{$this->token}/getFile",
+            ['file_id' => $fileId],
+        );
+
+        if ($response->failed()) {
+            Log::warning('telegram.getFile.failed', [
+                'status' => $response->status(),
+                'description' => $response->json('description'),
+            ]);
+
+            return null;
+        }
+
+        $result = $response->json('result');
+
+        return is_array($result) ? $result : null;
+    }
+
+    public function downloadFile(string $filePath): ?string
+    {
+        if ($this->token === '') {
+            return null;
+        }
+
+        $response = $this->http()
+            ->timeout(20)
+            ->get("https://api.telegram.org/file/bot{$this->token}/{$filePath}");
+
+        if ($response->failed()) {
+            Log::warning('telegram.downloadFile.failed', [
+                'status' => $response->status(),
+            ]);
+
+            return null;
+        }
+
+        return $response->body();
+    }
+
+    private function http(): PendingRequest
+    {
+        $request = Http::timeout(10);
+
+        if ($this->caBundle !== '') {
+            // Local dev behind a TLS-inspecting proxy: PHP's bundled CA store
+            // does not include the proxy root, so an explicit bundle is needed.
+            $request = $request->withOptions(['verify' => $this->caBundle]);
+        }
+
+        return $request;
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     private function call(string $method, array $payload): void
@@ -88,15 +181,7 @@ class TelegramClient
             return;
         }
 
-        $request = Http::timeout(10);
-
-        if ($this->caBundle !== '') {
-            // Local dev behind a TLS-inspecting proxy: PHP's bundled CA store
-            // does not include the proxy root, so an explicit bundle is needed.
-            $request = $request->withOptions(['verify' => $this->caBundle]);
-        }
-
-        $response = $request->post("https://api.telegram.org/bot{$this->token}/{$method}", $payload);
+        $response = $this->http()->post("https://api.telegram.org/bot{$this->token}/{$method}", $payload);
 
         if ($response->failed()) {
             Log::warning("telegram.{$method}.failed", [

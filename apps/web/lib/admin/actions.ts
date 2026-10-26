@@ -135,3 +135,109 @@ export async function saveShipmentAction(formData: FormData): Promise<void> {
   revalidatePath(`/admin/orders/${id}`);
   redirect(orderPath(id, "updated", "shipment"));
 }
+
+export async function markPaymentPaidAction(formData: FormData): Promise<void> {
+  await requireAdminSession();
+
+  const id = Number(formData.get("order_id"));
+  const reference = String(formData.get("reference") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const proofId = Number(formData.get("proof_id") ?? 0);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    redirect("/admin/orders?error=Invalid%20order.");
+  }
+
+  try {
+    await adminFetch(`/admin/orders/${id}/payment/verify`, {
+      method: "POST",
+      body: JSON.stringify({
+        ...(reference ? { reference } : {}),
+        ...(note ? { note } : {}),
+        ...(Number.isInteger(proofId) && proofId > 0 ? { proof_id: proofId } : {}),
+      }),
+    });
+  } catch (error) {
+    const message =
+      error instanceof AdminApiError
+        ? error.message
+        : "Could not verify the payment. Please try again.";
+
+    redirect(orderPath(id, "error", message));
+  }
+
+  revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${id}`);
+  revalidatePath("/admin/metrics");
+  redirect(orderPath(id, "updated", "paid"));
+}
+
+export async function rejectPaymentProofAction(formData: FormData): Promise<void> {
+  await requireAdminSession();
+
+  const id = Number(formData.get("order_id"));
+  const proofId = Number(formData.get("proof_id"));
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!Number.isInteger(id) || id <= 0) {
+    redirect("/admin/orders?error=Invalid%20order.");
+  }
+
+  if (!Number.isInteger(proofId) || proofId <= 0) {
+    redirect(orderPath(id, "error", "Invalid receipt."));
+  }
+
+  if (!reason) {
+    redirect(orderPath(id, "error", "Tell the customer why the receipt was rejected."));
+  }
+
+  try {
+    await adminFetch(`/admin/orders/${id}/payment/reject`, {
+      method: "POST",
+      body: JSON.stringify({ proof_id: proofId, reason }),
+    });
+  } catch (error) {
+    const message =
+      error instanceof AdminApiError
+        ? error.message
+        : "Could not reject the receipt. Please try again.";
+
+    redirect(orderPath(id, "error", message));
+  }
+
+  revalidatePath(`/admin/orders/${id}`);
+  redirect(orderPath(id, "updated", "proof-rejected"));
+}
+
+export async function savePaymentSettingsAction(formData: FormData): Promise<void> {
+  await requireAdminSession();
+
+  const text = (key: string) => String(formData.get(key) ?? "").trim();
+  const flag = (key: string) => formData.get(key) === "on";
+
+  try {
+    await adminFetch("/admin/settings/payments", {
+      method: "PUT",
+      body: JSON.stringify({
+        cod_enabled: flag("cod_enabled"),
+        kbzpay_enabled: flag("kbzpay_enabled"),
+        wave_enabled: flag("wave_enabled"),
+        kbzpay_account_name: text("kbzpay_account_name"),
+        kbzpay_phone: text("kbzpay_phone"),
+        wave_account_name: text("wave_account_name"),
+        wave_phone: text("wave_phone"),
+      }),
+    });
+  } catch (error) {
+    const message =
+      error instanceof AdminApiError
+        ? error.message
+        : "Could not save the payment settings. Please try again.";
+
+    redirect(`/admin/settings/payments?error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/admin/settings/payments");
+  revalidatePath("/", "layout");
+  redirect("/admin/settings/payments?updated=1");
+}

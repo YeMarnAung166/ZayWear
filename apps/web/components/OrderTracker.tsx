@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { OrderHeading } from "@/components/OrderHeading";
+import { PaymentPanel } from "@/components/PaymentPanel";
 import { useI18n } from "@/lib/i18n";
 import { formatOrderTimestamp, orderEventTimes } from "@/lib/order-format";
 import {
@@ -18,7 +19,13 @@ const TERMINAL_STATUSES = ["cancelled", "refused", "returned"];
  * parcel?" and deliberately stops there: no address, items, or totals, because
  * the link is forwarded over chat.
  */
-export function OrderTracker({ order }: { order: TrackingOrder }) {
+export function OrderTracker({
+  order,
+  token,
+}: {
+  order: TrackingOrder;
+  token: string;
+}) {
   const { pick } = useI18n();
 
   const terminal = TERMINAL_STATUSES.includes(order.status);
@@ -80,6 +87,8 @@ export function OrderTracker({ order }: { order: TrackingOrder }) {
           </ol>
         )}
       </div>
+
+      <PaymentPanel orderNumber={order.order_number} token={token} />
 
       {order.shipment?.tracking_number ? (
         <div className="rounded-lg bg-neutral-50 p-4 text-sm">

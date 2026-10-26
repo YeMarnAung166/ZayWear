@@ -84,6 +84,11 @@ class Order extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function paymentProofs(): HasMany
+    {
+        return $this->hasMany(PaymentProof::class);
+    }
+
     public function shipment(): HasOne
     {
         return $this->hasOne(Shipment::class)->latestOfMany();

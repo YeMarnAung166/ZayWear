@@ -30,6 +30,9 @@ export type AdminOrderSummary = {
   items: AdminOrderItem[];
   events: AdminOrderEvent[];
   shipment: AdminShipment | null;
+  payments: AdminPayment[];
+  payment_required_before_shipping: boolean;
+  can_mark_paid: boolean;
   refusal_reason: string | null;
   cancel_reason: string | null;
   allowed_transitions: string[];
@@ -61,6 +64,48 @@ export type AdminShipment = {
   cod_amount_mmk: number;
   dispatched_at: string | null;
   delivered_at: string | null;
+};
+
+export type AdminPaymentProof = {
+  id: number;
+  source: string;
+  status: string;
+  original_name: string | null;
+  mime_type: string;
+  size_bytes: number;
+  review_note: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+};
+
+export type AdminPayment = {
+  id: number;
+  provider: string;
+  status: string;
+  amount_mmk: number;
+  provider_ref: string | null;
+  paid_at: string | null;
+  instructions: {
+    account_name?: string;
+    phone?: string;
+    reference?: string;
+  } | null;
+  verification: {
+    verified_by?: string;
+    verified_at?: string;
+    note?: string | null;
+  } | null;
+  proofs: AdminPaymentProof[];
+};
+
+export type AdminPaymentSettings = {
+  cod_enabled: boolean;
+  kbzpay_enabled: boolean;
+  wave_enabled: boolean;
+  kbzpay_account_name: string;
+  kbzpay_phone: string;
+  wave_account_name: string;
+  wave_phone: string;
 };
 
 export type AdminOrderList = {

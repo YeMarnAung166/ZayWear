@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
+import type { ShopConfig } from "@/lib/types";
 
 // Placeholder until the eComReg certificate arrives. Replace before launch.
 const ECOMREG_NO = "00000000";
 
-export function Footer({ telegramBot }: { telegramBot: string }) {
+export function Footer({
+  telegramBot,
+  config,
+}: {
+  telegramBot: string;
+  config: ShopConfig;
+}) {
   const { t } = useI18n();
 
   return (
@@ -43,13 +50,15 @@ export function Footer({ telegramBot }: { telegramBot: string }) {
         <div>
           <p className="text-xs text-neutral-500">{t("footer.payment")}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
-            <span className="rounded-sm bg-success-500 px-2 py-1 text-neutral-0">COD</span>
-            <span className="rounded-sm bg-neutral-200 px-2 py-1">
-              KBZPay <span className="font-normal">({t("footer.comingSoon")})</span>
-            </span>
-            <span className="rounded-sm bg-neutral-200 px-2 py-1">
-              Wave <span className="font-normal">({t("footer.comingSoon")})</span>
-            </span>
+            {config.cod_enabled ? (
+              <span className="rounded-sm bg-success-500 px-2 py-1 text-neutral-0">COD</span>
+            ) : null}
+            {config.kbzpay_enabled ? (
+              <span className="rounded-sm bg-neutral-200 px-2 py-1">KBZPay</span>
+            ) : null}
+            {config.wave_enabled ? (
+              <span className="rounded-sm bg-neutral-200 px-2 py-1">Wave Money</span>
+            ) : null}
           </div>
           <p className="mt-3 text-xs text-neutral-500">
             {new Date().getFullYear()} © ZayWear

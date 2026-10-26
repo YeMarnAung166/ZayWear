@@ -59,9 +59,39 @@ export type ShopConfig = {
   cod_enabled: boolean;
   kbzpay_enabled: boolean;
   wave_enabled: boolean;
+  kbzpay_account_name: string;
+  kbzpay_phone: string;
+  wave_account_name: string;
+  wave_phone: string;
   return_window_days: number;
   support_telegram: string;
   telegram_bot: string;
+};
+
+export type PaymentInstructions = {
+  account_name: string;
+  phone: string;
+  reference: string;
+};
+
+export type PaymentProofSummary = {
+  id: number;
+  status: string;
+  source: string;
+  created_at: string | null;
+};
+
+/** Public payment details behind a signed tracking link. */
+export type OrderPayment = {
+  method: string;
+  status: string;
+  total_mmk: number;
+  is_prepaid: boolean;
+  instructions: PaymentInstructions | null;
+  telegram_url: string | null;
+  proofs: PaymentProofSummary[];
+  rejection_reason: string | null;
+  can_upload: boolean;
 };
 
 export type SizeChart = {

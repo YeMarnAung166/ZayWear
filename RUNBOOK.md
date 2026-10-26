@@ -41,7 +41,7 @@ npm run lint
 npm run build
 ```
 
-Current baseline: **33 tests / 289 assertions**, lint and build green.
+Current baseline: **87 tests / 793 assertions**, lint and build green.
 
 ### 1.1 Verify locally in 10 minutes
 
@@ -60,7 +60,7 @@ The seeder prints ten orders covering every status plus signed tracking URLs.
 | 1 | <http://localhost:3000> | Burmese home, product grid, no English-only gaps |
 | 2 | A product page | Out-of-stock sizes disabled; selecting a size makes the Telegram CTA point at that size |
 | 3 | Cart | Line, quantity cap, free-delivery nudge |
-| 4 | Checkout | Township fee appears inline; COD selected; KBZPay/Wave visibly disabled |
+| 4 | Checkout | Township fee appears inline; COD selected by default; prepaid methods appear only when enabled and configured |
 | 5 | Place the order | Success page with `ZW-…` and a working **Copy tracking link** |
 | 6 | The tracking link | Timeline, masked phone, fee/total breakdown |
 | 7 | <http://127.0.0.1:8000/admin/orders> | Ten demo orders, counts per status, refresh notice |
@@ -74,6 +74,19 @@ The seeder prints ten orders covering every status plus signed tracking URLs.
 The local `.env` raises `ORDER_RATE_LIMIT_PER_MINUTE` to 120 so a verification run does not hit `429`; production stays at 10. If a limit is hit anyway, `php artisan cache:clear` resets counters.
 
 Use `localhost`, never `127.0.0.1`, in the browser: Next 16 only sends dev assets to allowed origins, and a blocked origin renders the page without hydrating it, so every button is inert. `apps/web/next.config.ts` already allows `127.0.0.1` and `192.168.1.17`; add the current LAN IP there for phone testing.
+
+### 1.2 Verify prepaid checkout locally
+
+Local receipts use `storage/app/private` and a short-lived signed route, so no Supabase project is needed.
+
+1. Sign in at <http://localhost:3000/admin/settings/payments>.
+2. Enable **KBZPay**, enter an account name and a `09…` phone, and save.
+3. Checkout: KBZPay is now offered and the helper shows the same account. Place the order.
+4. On the success page, upload a JPG/PNG/PDF receipt (≤ 5 MB). The proof list shows **Under review**.
+5. Open the order in `/admin/orders/{id}`. **View receipt** opens the private file; **Reject this receipt** requires a reason and the customer sees it on the order page.
+6. Upload again, then **Mark payment received**. The order moves `pending → confirmed` and every pending receipt becomes approved.
+7. Try `packed → shipped` while a second prepaid order is still unpaid: the API returns `422` and the admin shows the warning. Mark it paid, then ship.
+8. Telegram: open `https://t.me/<bot>?start=pay_ZW-000123`, enter the phone's last four digits (three attempts), send a receipt photo or PDF, then press **Mark paid** on the admin alert.
 
 ---
 
@@ -121,13 +134,13 @@ Demo orders never move stock and are never created by `migrate:fresh --seed`.
 
 ### Settings
 
-Shipping fee threshold, payment flags, return window, and the support handle live in `settings`:
+Shipping fee threshold, payment flags and receiving accounts, return window, and the support handle live in `settings`:
 
 ```sql
 select key, value from settings;
 ```
 
-Change them with `php artisan tinker` or a small seeder update, then clear the API cache if values look stale:
+Change payment flags and wallet details at `/admin/settings/payments`; the save invalidates the public response cache. Other keys can still be changed with `php artisan tinker` or a small seeder update, then clear the API cache if values look stale:
 
 ```powershell
 php artisan cache:clear
@@ -139,13 +152,15 @@ php artisan cache:clear
 
 Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apache vhost, PHP ini, start script), `apps/api/railway.json`, `apps/web/vercel.json`, both `.env.production.example` files, and `scripts/backup-db.ps1`, `restore-db.ps1`, `smoke-test.ps1`.
 
-### 3.1 Supabase (database)
+### 3.1 Supabase (database + storage)
 
-1. Create the project (Singapore region).
+1. Create the project in **Tokyo (`ap-northeast-1`)**. The Singapore migration is cancelled; keep the database and storage together.
 2. **Connect** → copy the **session pooler** details: host, port `5432`, user `postgres.<ref>`, password, database `postgres`. Keep `DB_SSLMODE=require`.
-3. No local migration needed: the first Railway deploy runs `php artisan migrate --force`.
-4. Store the session-pooler URL locally as `SUPABASE_DB_URL` for backups. Never commit it.
-5. The transaction pooler (`6543`) is optional later; session mode is what migrations, `pg_dump` and `pg_restore` need.
+3. **Storage** → create a **private** bucket named `payment-proofs`. Do not add a public read policy: the API uploads with the service-role key and admins view receipts through 10-minute signed URLs.
+4. Copy the **Project URL** and **service_role** key for Railway: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET=payment-proofs`. The service-role key is server-only; never put it in Vercel or the storefront.
+5. No local migration needed: the first Railway deploy runs `php artisan migrate --force`.
+6. Store the session-pooler URL locally as `SUPABASE_DB_URL` for backups. Never commit it.
+7. The transaction pooler (`6543`) is optional later; session mode is what migrations, `pg_dump` and `pg_restore` need.
 
 ### 3.2 Railway (API)
 
@@ -154,6 +169,7 @@ Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apa
    - `APP_KEY` ← `php artisan key:generate --show`
    - `ADMIN_PASSWORD`, `ADMIN_TOKEN`, `ORDER_TOKEN_SECRET` ← new random 64-char values (not the local defaults)
    - `DB_*` from Supabase, `DB_SSLMODE=require`
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET=payment-proofs` for receipt storage
    - `FRONTEND_URL` and `CORS_ALLOWED_ORIGINS` ← the Vercel domain (fill after 3.3)
    - `TELEGRAM_*` ← the current token/secret (rotate first if it ever leaked)
 3. Deploy. The container runs `php artisan migrate --force` at start (see `docker/start.sh`) — Railway's config-as-code no longer applies `preDeployCommand` for this service, so boot-time migration is the source of truth. The healthcheck is `/api/config`, which also proves the DB connection.
@@ -199,6 +215,9 @@ Then, by hand:
 
 - Place a real COD order from the Vercel site. Tracking link, admin detail, and Telegram alert must all work.
 - Sign in at `https://<web>/admin`, confirm the order, attach a shipment, and move it to delivered.
+- Open `/admin/settings/payments`, enable KBZPay and Wave with the real merchant account names and phones, and save.
+- Place a real prepaid order from the Vercel site. Upload a receipt on the success page, then reject it from the admin; the customer must see the reason. Upload again, mark it paid, and confirm the order auto-confirms. `packed → shipped` must be blocked until payment is verified.
+- Send `/start pay_ZW-000123` to the bot from the customer's phone, enter the last four digits, upload a photo receipt, and press **Mark paid** on the admin alert.
 - Place one order from the bot on your phone.
 - Confirm no mock products appear (`NEXT_PUBLIC_USE_MOCK` unset).
 - `getWebhookInfo` points at Railway, not the tunnel.
@@ -233,6 +252,20 @@ Prefer the Telegram alert buttons or `/admin/orders/{id}`. Both use the same sta
 Valid path: `pending → confirmed → packed → shipped → delivered`.
 Terminal alternatives: `cancelled`, `refused`, `returned`.
 COD flips to `paid` on `delivered`; a non-COD `returned` becomes `refunded`.
+
+### Verify a prepaid payment
+
+1. Open `/admin/orders/{id}` and compare the receipt with the wallet app.
+2. **View receipt** opens a 10-minute signed URL. The proof row shows the source (website or Telegram), time, and size.
+3. Enter the wallet transaction ID if you have one (it cannot be reused on another order), then **Mark payment received**.
+4. The order becomes `confirmed` if it was `pending`; pending receipts are approved. The customer sees the paid state on their order page.
+5. If the transfer never arrived, reject the receipt with a reason. The customer can upload another one, up to five per order.
+
+Shipping a prepaid order is blocked until payment is `paid`. The same action is available as **Mark paid** on the Telegram order/proof alert.
+
+### Change payment settings
+
+`/admin/settings/payments` controls the storefront, the footer, and the bot. Enabling KBZPay or Wave requires an account name and a valid `09…` phone; at least one method must stay usable. Saving invalidates the public API cache immediately. The receiving account is snapshotted onto each new order, so later changes do not rewrite existing instructions.
 
 ### Check the API without a browser
 
@@ -281,6 +314,10 @@ php artisan model:prune --model="App\Models\TelegramSession"
 | Bot silent | Tunnel down, wrong webhook URL, or secret mismatch | `getWebhookInfo`; re-run `setWebhook` |
 | Bot `cURL error 60` locally | TLS-inspecting proxy | `TELEGRAM_CA_BUNDLE=storage/app/cacert.pem` |
 | Orders exist but no admin alert | `TELEGRAM_ADMIN_CHAT_ID` empty or bot not in the group | Send `/id`, update the env, redeploy |
+| Prepaid receipt upload returns `503` | `SUPABASE_*` missing on Railway or the bucket is not private/exists | Create `payment-proofs`, set the three vars, redeploy |
+| **View receipt** 404 | Storage object missing or signed URL failed | Check the API log (`payment-proof.sign.failed`); the customer can send the receipt on Telegram |
+| `422` on `packed → shipped` | Prepaid order is still unpaid | Verify the transfer and **Mark payment received** first |
+| KBZPay/Wave missing at checkout | Flag off or account name/phone incomplete | Fix `/admin/settings/payments`; effective availability needs all three |
 | Site shows placeholder products in production | `NEXT_PUBLIC_USE_MOCK=1` in the Vercel build | Remove it and rebuild |
 | Burmese text looks like `?????` in a terminal | Console encoding, not the data | Check with `curl` or the browser, not PowerShell `Get-Content` |
 | Sentry shows no events | DSN missing or the release never deployed | Check `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`, then `php artisan sentry:test` from a host that can reach Sentry |

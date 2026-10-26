@@ -1,5 +1,19 @@
 # CHANGELOG.md
 
+## 0.8.0 — 2026-10-26
+
+Prepaid checkout: KBZPay/Wave transfers verified by the merchant, not a wallet API.
+
+- Checkout offers only enabled, fully configured methods; KBZPay/Wave show the receiving account and prepaid helper copy, while COD stays the default
+- Success and tracking pages carry a payment panel: amount, account snapshot, order-number reference, receipt upload (JPG/PNG/PDF ≤ 5 MB), proof history, rejection reason, and a Telegram deep link
+- `payment_proofs` table plus a private Supabase `payment-proofs` bucket; five receipts per order, 5 uploads/min/IP, and 10-minute signed URLs for admins
+- Admin Payments page at `/admin/settings/payments` with `GET|PUT /api/admin/settings/payments`; a wallet needs an account name and a valid `09…` phone before it appears on the storefront or in the bot
+- Admin order detail: payment card, receipt view/reject with a customer-visible reason, and mark paid with an optional wallet transaction ID; the order list filters by payment status and method
+- Marking paid approves pending receipts and confirms a pending order; `packed → shipped` is blocked while a prepaid order is unpaid
+- Telegram: payment-method step, `/pay`, `pay_` deep links, last-four phone gate (three attempts), photo/PDF receipt upload with file-ID dedupe, a proof alert to the admin chat, and `adm:paid`
+- Footer, terms, checkout helper, and `GET /config` reflect the live methods and receiving accounts
+- Tests: 87 passing / 793 assertions
+
 ## 0.7.0 — 2026-10-26
 
 Next.js admin (V2 B1): a full day of orders can be processed without touching the API or database.

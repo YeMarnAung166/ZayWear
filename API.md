@@ -20,7 +20,8 @@
 |---|---|---|
 | `api` | All public reads + webhook | 300/min per IP |
 | `orders` | `POST /orders` | 10/min per IP |
-| `tracking` | `GET /orders/{number}/{token}` | 60/min per IP |
+| `tracking` | `GET /orders/{number}/{token}` and its `/payment` sibling | 60/min per IP |
+| `payment-proofs` | `POST /orders/{number}/{token}/payment-proof` | 5/min per IP |
 | `admin` | Admin JSON **and** the Blade admin | 30/min per IP |
 | `admin-login` | `POST /admin/session` | 5/min and 20/hour per IP |
 | `login` | Telegram start/poll and logout | 60/min per IP |
@@ -45,11 +46,17 @@ Storefront feature flags and links.
   "cod_enabled": true,
   "kbzpay_enabled": false,
   "wave_enabled": false,
+  "kbzpay_account_name": "",
+  "kbzpay_phone": "",
+  "wave_account_name": "",
+  "wave_phone": "",
   "return_window_days": 7,
   "support_telegram": "",
   "telegram_bot": "zaywear_alerts_bot"
 }
 ```
+
+`kbzpay_enabled` and `wave_enabled` are **effective** availability: the setting must be on **and** the matching account name and `09…` phone must be present. A half-configured wallet stays hidden from checkout, the footer, and the bot. The admin settings endpoint returns the raw flags instead, so the merchant can see what they saved.
 
 ### `GET /categories`
 
@@ -106,7 +113,7 @@ Only active, courier-served townships.
 
 ### `POST /orders`
 
-Creates a COD order. Send `Idempotency-Key: <uuid>`: replaying the same key returns the original order with `200` instead of `201`, and a concurrent duplicate cannot create a second order.
+Creates an order. Send `Idempotency-Key: <uuid>`: replaying the same key returns the original order with `200` instead of `201`, and a concurrent duplicate cannot create a second order.
 
 ```json
 {
@@ -124,9 +131,11 @@ Rules enforced server-side:
 
 - Prices, delivery fee, and free-delivery threshold are computed by the API; client prices are ignored.
 - `qty >= 1`; stock is checked under `lockForUpdate` and decremented in the same transaction.
-- `payment_method` must be enabled in settings. V1 only enables `cod`.
+- `payment_method` must be one of `cod`, `kbzpay`, `wave` **and** currently available. Prepaid methods need complete receiving-account details (see `GET /config`).
 - Phone is normalised to `09…` and must match `^09[0-9]{7,9}$`.
 - Township must be active.
+
+Prepaid orders are created `unpaid` with a `pending` payment row. The receiving account shown to the customer is snapshotted into `payments.raw_payload.instructions` (`account_name`, `phone`) plus `reference` (the order number), so changing settings later cannot rewrite what the customer was told. The order ships only after an admin marks the payment received.
 
 `201 Created` (or `200` on idempotent replay):
 
@@ -149,6 +158,51 @@ Public, signed tracking. The token is an HMAC over the order number with a 90-da
 `200` returns `{ "data": { order_number, status, events, shipment, refusal_reason, created_at } }`. The payload is intentionally smaller than the account order: no address, items, payment, or customer, so a forwarded link cannot leak them.
 `403` for a bad or expired token (identical message either way).
 `404` for an unknown order number.
+
+### `GET /orders/{orderNumber}/{token}/payment`
+
+Prepaid instructions and receipt history behind the same signed tracking token. No account needed.
+
+```json
+{
+  "data": {
+    "method": "kbzpay",
+    "status": "unpaid",
+    "total_mmk": 31500,
+    "is_prepaid": true,
+    "instructions": {
+      "account_name": "ZayWear",
+      "phone": "09123456789",
+      "reference": "ZW-000123"
+    },
+    "telegram_url": "https://t.me/zaywear_alerts_bot?start=pay_ZW-000123",
+    "proofs": [
+      { "id": 7, "status": "pending", "source": "web", "created_at": "2026-10-26T10:00:00+00:00" }
+    ],
+    "rejection_reason": null,
+    "can_upload": true
+  }
+}
+```
+
+- `instructions` is the snapshot from order creation and is `null` when the wallet has no usable account details.
+- `rejection_reason` is the review note of the latest rejected receipt, shown to the customer so they can correct it.
+- `can_upload` is `true` only while the order is prepaid, `unpaid`, and `pending`/`confirmed`/`packed`.
+- COD orders return `is_prepaid: false` and `instructions: null`.
+- `403` for a bad or expired token; `404` for an unknown order number.
+
+### `POST /orders/{orderNumber}/{token}/payment-proof`
+
+Uploads one receipt. `multipart/form-data` with a single `receipt` file.
+
+- Allowed: `image/jpeg`, `image/png`, `application/pdf`; maximum **5 MB**.
+- Maximum **5 receipts per order**.
+- Rate limited to **5 uploads per minute per IP** (the `payment-proofs` limiter; `PAYMENT_PROOF_RATE_LIMIT_PER_MINUTE` sets the budget).
+- `201` returns `{ "data": { "id", "status": "pending", "created_at" } }`.
+- `422` when the order is not prepaid, already paid, closed, over the receipt cap, or the file fails validation.
+- `503` when proof storage is not configured. Production refuses to fall back to Railway's ephemeral filesystem; send the receipt to the bot instead.
+
+Receipts live in the private Supabase Storage bucket `payment-proofs`. They are never public: admins view them through a 10-minute signed URL.
 
 ---
 
@@ -207,21 +261,50 @@ Header: `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401`. Rate 
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/admin/orders` | `status`, `from`, `to` (dates), `q` (order number or phone), `page`; 50 per page |
-| `GET` | `/admin/orders/{id}` | Full order with customer, township, items, events, shipment, payments, `allowed_transitions` |
-| `PATCH` | `/admin/orders/{id}/status` | `{ "status": "confirmed" }`; optional `reason`, `refusal_reason` |
-| `POST` | `/admin/orders/{id}/shipment` | `{ "carrier": "…", "tracking_number": "…" }`; `cod_amount_mmk` is set from the order total for COD |
+| `GET` | `/admin/orders` | `status`, `payment_status`, `payment_method`, `from`, `to` (dates), `q` (order number or phone), `page`; 50 per page |
+| `GET` | `/admin/orders/{id}` | Full order with customer, township, items, events, shipment, payments and their receipts, `payment_required_before_shipping`, `can_mark_paid`, `allowed_transitions` |
+| `PATCH` | `/admin/orders/{id}/status` | `{ "status": "confirmed" }`; optional `reason`, `refusal_reason`. `packed → shipped` is rejected with `422` while a prepaid order is unpaid |
+| `POST` | `/admin/orders/{id}/shipment` | `{ "carrier": "…", "tracking_number": "…" }`; `cod_amount_mmk` is set from the order total for COD and `0` for prepaid |
+| `POST` | `/admin/orders/{id}/payment/verify` | Marks a prepaid payment received. Optional `reference` (wallet transaction ID, unique), `note`, `proof_id`. Approves pending receipts and confirms a pending order |
+| `POST` | `/admin/orders/{id}/payment/reject` | `{ "proof_id": 7, "reason": "…" }`; only a pending receipt can be rejected |
+| `GET` | `/admin/payment-proofs/{proof}/url` | Returns `{ "url", "expires_at" }` for a private receipt; the URL expires in 10 minutes |
+| `GET` | `/admin/settings/payments` | Raw payment flags and receiving-account fields |
+| `PUT` | `/admin/settings/payments` | Saves all seven fields; enabling a wallet requires an account name and a valid `09…` phone, and at least one method must stay usable |
 | `GET` | `/admin/metrics` | Orders today/7d/30d, refusal rate and reasons, median delivery hours, delivered revenue, status counts |
 
-List response `meta`: `current_page`, `last_page`, `per_page`, `total`, and `status_counts` (one entry per status present, e.g. `{ "pending": 3, "delivered": 12 }`).
+List response `meta`: `current_page`, `last_page`, `per_page`, `total`, and `status_counts` (one entry per status present, e.g. `{ "pending": 3, "delivered": 12 }`). `status_counts` ignores the payment filters.
 
 Order fields common to list and detail: `id`, `order_number`, `status`, `payment_status`, `payment_method`, `placed_via`, `subtotal_mmk`, `delivery_fee_mmk`, `discount_mmk`, `total_mmk`, `note`, `customer` (`name`, `phone` masked in the list), `township` (`name_mm`, `name_en`, `region`), `address_line`, `landmark`, `items_count`, `created_at`, `refusal_reason`, `cancel_reason`.
 
-Detail adds `items` (`name_mm`, `name_en`, `size`, `color`, `qty`, `unit_price_mmk`, `line_total_mmk`), `events` (`from`, `to`, `actor`, `reason`, `at`), `shipment` (`carrier`, `tracking_number`, `cod_amount_mmk`, `dispatched_at`, `delivered_at`), the full customer phone, and `allowed_transitions` — the statuses this order may move to next. The list omits those arrays and always returns `allowed_transitions: []`.
+Detail adds `items` (`name_mm`, `name_en`, `size`, `color`, `qty`, `unit_price_mmk`, `line_total_mmk`), `events` (`from`, `to`, `actor`, `reason`, `at`), `shipment` (`carrier`, `tracking_number`, `cod_amount_mmk`, `dispatched_at`, `delivered_at`), the full customer phone, `payments`, `payment_required_before_shipping`, `can_mark_paid`, and `allowed_transitions` — the statuses this order may move to next. The list omits those arrays and always returns `allowed_transitions: []`.
+
+Each payment row carries `id`, `provider`, `status`, `amount_mmk`, `provider_ref`, `paid_at`, `instructions` (the receiving-account snapshot), `verification` (`verified_by`, `verified_at`, `note`), and `proofs` (`id`, `source`, `status`, `original_name`, `mime_type`, `size_bytes`, `review_note`, `reviewed_at`, `created_at`).
+
+`payment_required_before_shipping` is `true` for a prepaid order that is not `paid`. `can_mark_paid` is `true` for a prepaid order that is not `paid` and not `cancelled`/`refused`/`returned`.
 
 Status values: `pending`, `confirmed`, `packed`, `shipped`, `delivered`, `cancelled`, `refused`, `returned`.
 
-Invalid transitions return `422` (for example `delivered → pending`). A COD order becomes `payment_status = paid` when it reaches `delivered`.
+Invalid transitions return `422` (for example `delivered → pending`). A COD order becomes `payment_status = paid` when it reaches `delivered`; a prepaid order becomes `refunded` when it reaches `returned`. Verifying a prepaid payment while the order is still `pending` moves it to `confirmed` in the same transaction; already confirmed or packed orders keep their status.
+
+### Payment settings
+
+`GET` and `PUT /admin/settings/payments` share one shape:
+
+```json
+{
+  "data": {
+    "cod_enabled": true,
+    "kbzpay_enabled": true,
+    "wave_enabled": false,
+    "kbzpay_account_name": "ZayWear",
+    "kbzpay_phone": "09123456789",
+    "wave_account_name": "",
+    "wave_phone": ""
+  }
+}
+```
+
+`PUT` requires all seven fields. Phones accept `+959…`, `959…`, or `09…` and are stored normalised to `09…`. A wallet may be enabled only with a non-empty account name and a valid phone; at least one method must remain usable. Saving bumps the public response cache version, so `GET /config` and the storefront change immediately.
 
 ---
 
@@ -248,3 +331,15 @@ curl -s -X POST http://127.0.0.1:8000/api/orders \
 ```
 
 After repeated order tests the IP hits the 10/min limit. Clear it with `php artisan cache:clear`.
+
+Prepaid smoke test (use the token from the create response):
+
+```bash
+curl -s http://127.0.0.1:8000/api/orders/ZW-000123/<token>/payment
+
+curl -s -X POST http://127.0.0.1:8000/api/orders/ZW-000123/<token>/payment-proof \
+  -H 'Accept: application/json' \
+  -F 'receipt=@receipt.jpg'
+```
+
+Local and testing environments store receipts on the local disk and serve them through a short-lived signed route. Production requires `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and the private `payment-proofs` bucket; otherwise uploads return `503`.

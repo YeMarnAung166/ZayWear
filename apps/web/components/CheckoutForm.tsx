@@ -25,6 +25,30 @@ export function CheckoutForm({
   const defaultAddress =
     account?.addresses.find((item) => item.is_default) ?? account?.addresses[0] ?? null;
 
+  const availableMethods = [
+    ...(config.cod_enabled
+      ? [{ value: "cod", label: t("common.cod"), hint: "" }]
+      : []),
+    ...(config.kbzpay_enabled
+      ? [
+          {
+            value: "kbzpay",
+            label: "KBZPay",
+            hint: pick("ကြိုတင် ငွေလွှဲရန်", "Transfer before shipping"),
+          },
+        ]
+      : []),
+    ...(config.wave_enabled
+      ? [
+          {
+            value: "wave",
+            label: "Wave Money",
+            hint: pick("ကြိုတင် ငွေလွှဲရန်", "Transfer before shipping"),
+          },
+        ]
+      : []),
+  ];
+
   const [name, setName] = useState(account?.name ?? "");
   const [phone, setPhone] = useState(account?.phone ?? "09");
   const [townshipId, setTownshipId] = useState(
@@ -33,10 +57,17 @@ export function CheckoutForm({
   const [address, setAddress] = useState(defaultAddress?.address_line ?? "");
   const [landmark, setLandmark] = useState(defaultAddress?.landmark ?? "");
   const [note, setNote] = useState("");
-  const [payment, setPayment] = useState("cod");
+  const [payment, setPayment] = useState(availableMethods[0]?.value ?? "cod");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
+
+  const prepaidAccount =
+    payment === "kbzpay"
+      ? { name: config.kbzpay_account_name, phone: config.kbzpay_phone }
+      : payment === "wave"
+        ? { name: config.wave_account_name, phone: config.wave_phone }
+        : null;
 
   const township = useMemo(
     () => townships.find((item) => String(item.id) === townshipId) ?? null,
@@ -94,6 +125,12 @@ export function CheckoutForm({
       return pick(
         "ကုန်းကြောင်းအမှတ်အသား ထည့်ပါ (အနည်းဆုံး ၅ လုံး)။",
         "Please add a landmark (at least 5 characters).",
+      );
+    }
+    if (!availableMethods.some((method) => method.value === payment)) {
+      return pick(
+        "ငွေချေနည်း မရနိုင်သေးပါ။ ခဏနေမှ ပြန်စမ်းပါ။",
+        "No payment method is available right now. Please try again later.",
       );
     }
     return null;
@@ -261,50 +298,50 @@ export function CheckoutForm({
         <fieldset>
           <legend className="text-sm font-medium">{pick("ငွေချေမည့်နည်းလမ်း", "Payment method")}</legend>
           <div className="mt-2 space-y-2">
-            <label className="flex min-h-12 items-center gap-3 rounded-md border border-neutral-900 px-3 text-sm">
-              <input
-                type="radio"
-                name="payment"
-                value="cod"
-                checked={payment === "cod"}
-                onChange={() => setPayment("cod")}
-              />
-              <span className="font-medium">{t("common.cod")}</span>
-            </label>
+            {availableMethods.map((method) => {
+              const selected = payment === method.value;
 
-            <label
-              className={`flex min-h-12 items-center gap-3 rounded-md border border-neutral-200 px-3 text-sm ${
-                config.kbzpay_enabled ? "" : "text-neutral-500"
-              }`}
-            >
-              <input
-                type="radio"
-                name="payment"
-                value="kbzpay"
-                disabled={!config.kbzpay_enabled}
-                checked={payment === "kbzpay"}
-                onChange={() => setPayment("kbzpay")}
-              />
-              KBZPay {config.kbzpay_enabled ? "" : pick("(မရသေးပါ)", "(not yet available)")}
-            </label>
-
-            <label
-              className={`flex min-h-12 items-center gap-3 rounded-md border border-neutral-200 px-3 text-sm ${
-                config.wave_enabled ? "" : "text-neutral-500"
-              }`}
-            >
-              <input
-                type="radio"
-                name="payment"
-                value="wave"
-                disabled={!config.wave_enabled}
-                checked={payment === "wave"}
-                onChange={() => setPayment("wave")}
-              />
-              Wave Money {config.wave_enabled ? "" : pick("(မရသေးပါ)", "(not yet available)")}
-            </label>
+              return (
+                <label
+                  key={method.value}
+                  className={`flex min-h-12 items-center gap-3 rounded-md border px-3 text-sm ${
+                    selected ? "border-neutral-900" : "border-neutral-200"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="payment"
+                    value={method.value}
+                    checked={selected}
+                    onChange={() => setPayment(method.value)}
+                  />
+                  <span>
+                    <span className="font-medium">{method.label}</span>
+                    {method.hint ? (
+                      <span className="block text-xs text-neutral-500">{method.hint}</span>
+                    ) : null}
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </fieldset>
+
+        {prepaidAccount ? (
+          <div className="rounded-md bg-neutral-50 p-3 text-sm">
+            <p className="font-medium">{pick("ငွေလွှဲရန် အကောင့်", "Transfer to")}</p>
+            <p className="mt-1">
+              {prepaidAccount.name} ·{" "}
+              <span className="price">{prepaidAccount.phone}</span>
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              {pick(
+                "မှာယူပြီးနောက် ပြေစာကို အော်ဒါ စာမျက်နှာတွင် တင်နိုင်ပါသည်။ ငွေပေးချေမှု စစ်ဆေးပြီးမှ ပစ္စည်း ပို့ဆောင်ပါမည်။",
+                "After ordering, upload the receipt on the order page. We ship once the payment is verified.",
+              )}
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <aside className="h-fit rounded-lg border border-neutral-200 bg-neutral-50 p-4 md:sticky md:top-20">
@@ -357,10 +394,15 @@ export function CheckoutForm({
         </button>
 
         <p className="mt-2 text-center text-[11px] text-neutral-500">
-          {pick(
-            "မှာယူပြီးနောက် ၂၄ နာရီအတွင်း ဖုန်းဆက်အတည်ပြုပါမည်။",
-            "We will call you within 24 hours to confirm.",
-          )}
+          {payment === "cod"
+            ? pick(
+                "မှာယူပြီးနောက် ၂၄ နာရီအတွင်း ဖုန်းဆက်အတည်ပြုပါမည်။",
+                "We will call you within 24 hours to confirm.",
+              )
+            : pick(
+                "ငွေလွှဲပြီး ပြေစာ တင်ပါ။ စစ်ဆေးအတည်ပြုပြီးမှ ပို့ဆောင်ပါမည်။",
+                "Upload the receipt after transferring. We ship once the payment is verified.",
+              )}
         </p>
       </aside>
     </form>

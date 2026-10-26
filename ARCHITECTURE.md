@@ -38,7 +38,7 @@ This document is the schema contract. Change it before changing code, never the 
 |---|---|---|---|---|
 | local | `localhost:3000` | `localhost:8000` | sandbox bot | sandbox |
 | staging | Vercel preview | Railway staging | sandbox bot | sandbox |
-| production | custom domain | Railway prod | live bot | live / COD |
+| production | custom domain | Railway prod | live bot | COD + KBZPay/Wave prepaid, manual verification |
 
 Staging must never point at the production bot or the production Telegram admin chat.
 
@@ -187,11 +187,32 @@ Append-only. Never updated or deleted.
 | id | bigserial PK | |
 | order_id | bigint FK | |
 | provider | varchar(20) | `cod` \| `kbzpay` \| `wave` |
-| provider_ref | varchar(128) NULL UNIQUE | callback idempotency |
+| provider_ref | varchar(128) NULL UNIQUE | optional wallet transaction ID; one per payment |
 | amount_mmk | integer | |
 | status | varchar(20) | `pending` \| `paid` \| `failed` \| `refunded` |
-| raw_payload | jsonb NULL | callback body |
+| raw_payload | jsonb NULL | receiving-account snapshot (`instructions`, `reference`) and `verification` (`verified_by`, `verified_at`, `note`) |
 | paid_at | timestamptz NULL | |
+
+### `payment_proofs`
+| Column | Type | Notes |
+|---|---|---|
+| id | bigserial PK | |
+| order_id | bigint FK | cascade on delete |
+| payment_id | bigint FK NULL | null on delete |
+| source | varchar(20) | `web` \| `telegram` |
+| disk | varchar(20) | `supabase` \| `local` |
+| path | varchar(500) | `orders/{order_number}/{uuid}.{ext}` |
+| original_name | varchar(255) NULL | customer's file name |
+| mime_type | varchar(100) | `image/jpeg`, `image/png`, `application/pdf` |
+| size_bytes | unsigned int | ≤ 5 MB |
+| status | varchar(20) | `pending` \| `approved` \| `rejected` |
+| review_note | text NULL | rejection reason shown to the customer |
+| reviewed_by | varchar(40) NULL | `admin` or `telegram:admin` |
+| reviewed_at | timestamptz NULL | |
+| telegram_file_id | varchar(255) NULL | dedupe key |
+| telegram_chat_id, telegram_message_id | bigint NULL | provenance |
+
+Index `(order_id, status)`; UNIQUE `(order_id, telegram_file_id)`. Maximum five receipts per order.
 
 ### `shipments`
 | Column | Type | Notes |
@@ -209,7 +230,7 @@ Append-only. Never updated or deleted.
 | id | bigserial PK | |
 | chat_id | bigint UNIQUE | Telegram chat |
 | state | jsonb | `{step, data{}, message_id}` |
-| expires_at | timestamptz | 30 minutes from last action |
+| expires_at | timestamptz | 2 hours from last action |
 
 ### `settings`
 | Column | Type | Notes |
@@ -217,7 +238,7 @@ Append-only. Never updated or deleted.
 | key | varchar(80) PK | |
 | value | jsonb | |
 
-Seeded keys: `free_delivery_threshold_mmk` (`80000`), `currency` (`MMK`), `cod_enabled` (`true`), `kbzpay_enabled`, `wave_enabled`, `return_window_days` (`7`), `support_telegram`.
+Seeded keys: `free_delivery_threshold_mmk` (`80000`), `currency` (`MMK`), `cod_enabled` (`true`), `kbzpay_enabled`, `wave_enabled`, `kbzpay_account_name`, `kbzpay_phone`, `wave_account_name`, `wave_phone`, `return_window_days` (`7`), `support_telegram`, `order_prefix` (`ZW`).
 
 ---
 
@@ -257,11 +278,26 @@ Any transition outside this table returns **422** and writes no event.
 
 COD orders are created `unpaid`. On `delivered`, a COD order flips to `paid` in the same transaction that sets `delivered_at`.
 
+Prepaid orders stay `unpaid` until an admin verifies the transfer. Marking paid writes `payments.status = paid`, `paid_at`, an optional wallet `provider_ref`, and `raw_payload.verification`; it also approves every pending receipt on the order. If the order is still `pending`, verification moves it to `confirmed` in the same transaction (the customer has paid, so the order is real). Already `confirmed` or `packed` orders keep their status. `cancelled`, `refused`, and `returned` orders reject verification. A prepaid order that reaches `returned` becomes `refunded`.
+
+The two statuses stay separate otherwise: an order can be `confirmed` and `unpaid`, or `shipped` and `paid`.
+
 ### 3.3 `refusal_reason` values
 
 `wrong_size` · `too_expensive` · `did_not_order` · `unreachable` · `changed_mind` · `other`
 
 This column is the refusal-rate metric. Do not collapse it to a boolean.
+
+### 3.4 Prepaid verification and shipping guard
+
+KBZPay/Wave are **manual prepaid transfers**, not merchant API integrations.
+
+1. Checkout shows the receiving account from settings and snapshots it into `payments.raw_payload.instructions`.
+2. The customer transfers the exact total with the order number as the note, then uploads a receipt on the success/tracking page or sends a photo/PDF to the bot.
+3. An admin verifies the payment in `/admin/orders/{id}` or presses **Mark paid** on the Telegram alert.
+4. `OrderStateMachine` rejects `packed → shipped` with `422` while a prepaid order is not `paid`. COD is unaffected.
+
+Proof files go to the private Supabase Storage bucket `payment-proofs`. The API uses the service-role key, stores `orders/{order_number}/{uuid}.{ext}`, and serves admins a 10-minute signed URL. Railway's filesystem is ephemeral, so production refuses the local disk fallback and returns `503` on upload if Supabase is not configured.
 
 ---
 
@@ -320,7 +356,7 @@ All of the above runs inside one transaction that also decrements stock and crea
 - `POST /orders` accepts `Idempotency-Key`. Stored as `orders.idempotency_key` with a UNIQUE constraint.
 - Duplicate key ⇒ return the original order with **200**, not a new order and not an error.
 - Same key with a different payload ⇒ **409**.
-- Payment callbacks dedupe on `payments.provider_ref` UNIQUE. A repeated callback returns 200 and changes nothing.
+- Payment rows dedupe manual verification on `payments.provider_ref` UNIQUE: the optional wallet transaction ID cannot be reused on another order. There are no merchant callbacks in this release.
 
 ---
 
@@ -336,6 +372,7 @@ All of the above runs inside one transaction that also decrements stock and crea
 | `product_variants` | `(product_id, stock_qty)` |
 | `townships` | `(is_active)`, `(region)` |
 | `payments` | `(order_id)`, `provider_ref` UNIQUE |
+| `payment_proofs` | `(order_id, status)`, UNIQUE `(order_id, telegram_file_id)` |
 
 Search (`q`) uses a trigram index on `products.name_mm` and `products.name_en` if row count justifies it; otherwise a plain `ILIKE`.
 
@@ -374,9 +411,10 @@ Failed jobs land in `failed_jobs` and are visible to the admin. A Telegram outag
 | Admin UI (Next) | `POST /admin/session` validates `ADMIN_PASSWORD`; the Next server sets a signed httpOnly `zw_admin` cookie (HMAC-SHA256, 12 h, `ADMIN_SESSION_SECRET` ≥ 32 chars); 5/min and 20/hour per IP |
 | Blade admin (fallback) | HTTP Basic against `ADMIN_PASSWORD`; rate-limited |
 | `POST /orders` | 10/min/IP **and** 5/hour/phone |
-| Public API | 60/min/IP |
+| Public API | 300/min/IP (named `api` limiter) |
 | CORS | allow only the production domain and Vercel preview origins |
-| Payment callbacks | verify signature before touching the database |
+| Payment receipts | private Supabase bucket; uploads need the signed tracking token; 5/min/IP; 5 MB; JPG/PNG/PDF only; admin views use a 10-minute signed URL |
+| Manual payment verification | admin bearer token or the `TELEGRAM_ADMIN_CHAT_ID` callback check; no customer can mark an order paid |
 
 Logging:
 
@@ -397,6 +435,7 @@ Logging:
 005 townships         012 telegram_sessions
 006 customers         013 settings
 007 orders            014 size_charts
+                      015 payment_proofs
 ```
 
 Seeders, in order: `SettingsSeeder` → `TownshipSeeder` → `CategorySeeder` → `SizeChartSeeder` → `ProductSeeder` (demo catalog, replaced with real catalog before launch).
@@ -408,7 +447,8 @@ Seeders, in order: `SettingsSeeder` → `TownshipSeeder` → `CategorySeeder` �
 | Item | Owner | Blocks |
 |---|---|---|
 | Courier partner + served-township list | founder | `townships.csv` content |
-| KBZPay / Wave go-live at launch | founder | §3.2 payment paths, M3 scope |
+| Merchant KBZPay/Wave wallet names and phones | founder | prepaid checkout goes live |
+| Private `payment-proofs` bucket + Railway Supabase envs | founder | production receipt upload |
 | Return window confirmation (7 days assumed) | founder | `delivered → returned` rule |
 | Stack major versions (`V1.md` §6 pins Next 14 / Laravel 11 / PHP 8.2) | founder | M1 scaffolding |
 
@@ -418,5 +458,6 @@ Seeders, in order: `SettingsSeeder` → `TownshipSeeder` → `CategorySeeder` �
 
 | Version | Date | Change |
 |---|---|---|
+| 1.2 | 2026-10-26 | KBZPay/Wave prepaid transfers with manual verification, private receipt storage, shipping guard, and Telegram proof upload |
 | 1.1 | 2026-10-26 | Admin moves to Next.js `/admin` with a signed httpOnly session; Blade admin kept one release as fallback |
 | 1.0 | 2026-10-20 | Initial schema, state machine, pricing and token contracts |

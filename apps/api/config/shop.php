@@ -29,6 +29,7 @@ return [
         'api' => (int) env('API_RATE_LIMIT_PER_MINUTE', 300),
         'orders' => (int) env('ORDER_RATE_LIMIT_PER_MINUTE', 10),
         'tracking' => (int) env('TRACKING_RATE_LIMIT_PER_MINUTE', 60),
+        'payment_proofs' => (int) env('PAYMENT_PROOF_RATE_LIMIT_PER_MINUTE', 5),
         'admin' => (int) env('ADMIN_RATE_LIMIT_PER_MINUTE', 30),
         'admin_login' => (int) env('ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE', 5),
         'login' => (int) env('LOGIN_RATE_LIMIT_PER_MINUTE', 60),

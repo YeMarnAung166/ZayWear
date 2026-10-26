@@ -21,9 +21,9 @@ const sections: PolicySection[] = [
     heading_mm: "ငွေချေခြင်း",
     heading_en: "Payment",
     body_mm:
-      "လက်ရှိတွင် ပစ္စည်းရောက်မှ ငွေချေ (COD) ဖြင့် သာ မှာယူနိုင်ပါသည်။ ပို့ဆောင်သူထံ ငွေကို ကျပ်ငွေဖြင့် ပေးချေပါ။",
+      "ပစ္စည်းရောက်မှ ငွေချေ (COD)၊ KBZPay သို့မဟုတ် Wave Money ဖြင့် ငွေချေနိုင်ပါသည်။ KBZPay/Wave ဖြင့် မှာယူပါက အော်ဒါစာမျက်နှာတွင် ပြထားသော အကောင့်သို့ ကြိုတင်ငွေလွှဲပြီး ပြေစာကို တင်ပေးရပါမည်။ ငွေပေးချေမှုကို စစ်ဆေးအတည်ပြုပြီးမှ ပစ္စည်း ပို့ဆောင်ပါမည်။",
     body_en:
-      "Cash on delivery is currently the only payment method. Pay the courier in cash when your order arrives.",
+      "You can pay cash on delivery, or prepay by KBZPay or Wave Money. For prepaid orders, transfer to the account shown on the order page and upload the receipt. We dispatch only after the payment is verified.",
   },
   {
     heading_mm: "ပယ်ဖျက်ခြင်း",

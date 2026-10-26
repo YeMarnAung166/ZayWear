@@ -13,7 +13,9 @@ export default async function TrackingPage({
   params: Promise<{ number: string; token: string }>;
 }) {
   const { number, token } = await params;
-  const result = await getOrder(decodeURIComponent(number), decodeURIComponent(token));
+  const orderNumber = decodeURIComponent(number);
+  const trackingToken = decodeURIComponent(token);
+  const result = await getOrder(orderNumber, trackingToken);
 
   if ("error" in result) {
     return (
@@ -32,7 +34,7 @@ export default async function TrackingPage({
 
   return (
     <div className="mx-auto max-w-xl">
-      <OrderTracker order={result.data} />
+      <OrderTracker order={result.data} token={trackingToken} />
     </div>
   );
 }

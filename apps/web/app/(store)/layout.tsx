@@ -19,7 +19,7 @@ export default async function StoreLayout({
       <OfflineBanner />
       <Header />
       <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 px-4 py-6">{children}</main>
-      <Footer telegramBot={config.telegram_bot} />
+      <Footer telegramBot={config.telegram_bot} config={config} />
       <TelegramFab bot={config.telegram_bot} />
     </Providers>
   );

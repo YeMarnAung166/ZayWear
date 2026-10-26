@@ -4,7 +4,11 @@ import { notFound } from "next/navigation";
 import { RefreshButton } from "@/components/admin/RefreshButton";
 import { StatusActions } from "@/components/admin/StatusActions";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { saveShipmentAction } from "@/lib/admin/actions";
+import {
+  markPaymentPaidAction,
+  rejectPaymentProofAction,
+  saveShipmentAction,
+} from "@/lib/admin/actions";
 import { AdminApiError, adminFetch } from "@/lib/admin/api";
 import {
   formatAdminDateTime,
@@ -21,6 +25,36 @@ import {
 export const metadata: Metadata = {
   title: "Order detail",
 };
+
+const PROOF_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+const PROOF_SOURCE_LABELS: Record<string, string> = {
+  web: "Website",
+  telegram: "Telegram",
+};
+
+const PAYMENT_ROW_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  paid: "Paid",
+  failed: "Failed",
+  refunded: "Refunded",
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default async function AdminOrderDetailPage({
   params,
@@ -53,7 +87,11 @@ export default async function AdminOrderDetailPage({
   const notice = updated
     ? updated === "shipment"
       ? "Shipment saved."
-      : `Order moved to ${statusLabel(updated)}.`
+      : updated === "paid"
+        ? "Payment marked as received."
+        : updated === "proof-rejected"
+          ? "Receipt rejected."
+          : `Order moved to ${statusLabel(updated)}.`
     : null;
 
   return (
@@ -254,6 +292,205 @@ export default async function AdminOrderDetailPage({
                 <dd className="price">{MMK(order.total_mmk)}</dd>
               </div>
             </dl>
+
+            {order.payment_method !== "cod" ? (
+              <div className="mt-4 space-y-3 border-t border-neutral-200 pt-3">
+                {order.payment_status === "paid" ? (
+                  <p className="rounded-md bg-success-500/10 px-3 py-2 text-sm font-medium text-success-500">
+                    Payment received and verified.
+                  </p>
+                ) : order.payment_required_before_shipping ? (
+                  <p className="rounded-md bg-warning-500/10 px-3 py-2 text-sm font-medium text-warning-500">
+                    Payment not received. This order cannot ship until the transfer is
+                    verified.
+                  </p>
+                ) : null}
+
+                {order.payments.length === 0 ? (
+                  <p className="text-sm text-neutral-500">No payment record yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {order.payments.map((payment) => (
+                      <li
+                        key={payment.id}
+                        className="rounded-md border border-neutral-200 p-3 text-sm"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold">
+                              {PAYMENT_METHOD_LABELS[payment.provider]?.en ??
+                                payment.provider}
+                            </p>
+                            <p className="text-xs text-neutral-500">
+                              {PAYMENT_ROW_STATUS_LABELS[payment.status] ?? payment.status} ·{" "}
+                              <span className="price">{MMK(payment.amount_mmk)}</span>
+                            </p>
+                          </div>
+                          {payment.paid_at ? (
+                            <span className="text-xs text-success-500">
+                              {formatAdminDateTime(payment.paid_at)}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <dl className="mt-2 space-y-1 text-xs">
+                          {payment.provider_ref ? (
+                            <div className="flex justify-between gap-3">
+                              <dt className="text-neutral-500">Transaction ID</dt>
+                              <dd className="price text-right">{payment.provider_ref}</dd>
+                            </div>
+                          ) : null}
+                          {payment.instructions?.account_name ? (
+                            <div className="flex justify-between gap-3">
+                              <dt className="text-neutral-500">Receiving account</dt>
+                              <dd className="text-right">
+                                {payment.instructions.account_name}
+                                {payment.instructions.phone
+                                  ? ` · ${payment.instructions.phone}`
+                                  : ""}
+                              </dd>
+                            </div>
+                          ) : null}
+                          {payment.verification?.note ? (
+                            <div>
+                              <dt className="text-neutral-500">Verification note</dt>
+                              <dd>{payment.verification.note}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+
+                        {payment.proofs.length > 0 ? (
+                          <ul className="mt-3 space-y-2">
+                            {payment.proofs.map((proof) => (
+                              <li key={proof.id} className="rounded-md bg-neutral-50 p-2">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-semibold">
+                                      {proof.original_name ?? "Receipt"}
+                                    </p>
+                                    <p className="text-xs text-neutral-500">
+                                      {PROOF_SOURCE_LABELS[proof.source] ?? proof.source} ·{" "}
+                                      {formatAdminDateTime(proof.created_at)} ·{" "}
+                                      {formatBytes(proof.size_bytes)}
+                                    </p>
+                                  </div>
+                                  <span
+                                    className={`rounded-sm px-2 py-1 text-xs font-semibold ${
+                                      proof.status === "approved"
+                                        ? "bg-success-500/10 text-success-500"
+                                        : proof.status === "rejected"
+                                          ? "bg-error-500/10 text-error-500"
+                                          : "bg-warning-500/10 text-warning-500"
+                                    }`}
+                                  >
+                                    {PROOF_STATUS_LABELS[proof.status] ?? proof.status}
+                                  </span>
+                                </div>
+
+                                {proof.review_note ? (
+                                  <p className="mt-1 text-xs text-error-500">
+                                    {proof.review_note}
+                                  </p>
+                                ) : null}
+
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <Link
+                                    href={`/admin/orders/${order.id}/proofs/${proof.id}`}
+                                    prefetch={false}
+                                    target="_blank"
+                                    className="inline-flex min-h-9 items-center rounded-md border border-neutral-200 bg-neutral-0 px-3 text-xs font-semibold"
+                                  >
+                                    View receipt
+                                  </Link>
+
+                                  {proof.status === "pending" &&
+                                  order.payment_status !== "paid" ? (
+                                    <details className="w-full">
+                                      <summary className="cursor-pointer text-xs font-semibold text-error-500">
+                                        Reject this receipt
+                                      </summary>
+                                      <form
+                                        action={rejectPaymentProofAction}
+                                        className="mt-2 space-y-2"
+                                      >
+                                        <input type="hidden" name="order_id" value={order.id} />
+                                        <input type="hidden" name="proof_id" value={proof.id} />
+                                        <input
+                                          name="reason"
+                                          required
+                                          maxLength={500}
+                                          placeholder="Reason shown to the customer"
+                                          className="min-h-10 w-full rounded-md border border-neutral-200 px-3 text-sm"
+                                        />
+                                        <button
+                                          type="submit"
+                                          className="inline-flex min-h-10 items-center rounded-md bg-error-500 px-3 text-xs font-semibold text-neutral-0"
+                                        >
+                                          Reject receipt
+                                        </button>
+                                      </form>
+                                    </details>
+                                  ) : null}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {order.can_mark_paid ? (
+                  <form
+                    action={markPaymentPaidAction}
+                    className="space-y-2 rounded-md border border-neutral-200 p-3"
+                  >
+                    <p className="text-sm font-semibold">Mark payment received</p>
+                    <input type="hidden" name="order_id" value={order.id} />
+                    <div>
+                      <label
+                        htmlFor="payment_reference"
+                        className="text-xs font-semibold text-neutral-500"
+                      >
+                        Wallet transaction ID (optional)
+                      </label>
+                      <input
+                        id="payment_reference"
+                        name="reference"
+                        maxLength={128}
+                        className="mt-1 min-h-10 w-full rounded-md border border-neutral-200 px-3 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="payment_note"
+                        className="text-xs font-semibold text-neutral-500"
+                      >
+                        Note (optional)
+                      </label>
+                      <input
+                        id="payment_note"
+                        name="note"
+                        maxLength={500}
+                        className="mt-1 min-h-10 w-full rounded-md border border-neutral-200 px-3 text-sm"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="inline-flex min-h-10 items-center rounded-md bg-primary-500 px-3 text-sm font-semibold text-neutral-0"
+                    >
+                      Mark payment received
+                    </button>
+                    <p className="text-xs text-neutral-500">
+                      This also confirms a pending order and approves its pending
+                      receipts.
+                    </p>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+
             {order.refusal_reason ? (
               <p className="mt-3 text-sm">
                 <span className="text-neutral-500">Refusal:</span>{" "}

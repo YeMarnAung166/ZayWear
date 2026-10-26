@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Models\Order;
+use App\Models\Payment;
+use App\Models\PaymentProof;
 use App\Services\OrderStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +17,7 @@ class AdminOrderController extends Controller
     /**
      * @var array<int, string>
      */
-    private const RELATIONS = ['customer', 'township', 'items', 'events', 'shipment', 'payments'];
+    private const RELATIONS = ['customer', 'township', 'items', 'events', 'shipment', 'payments.paymentProofs'];
 
     public function index(Request $request): JsonResponse
     {
@@ -25,6 +27,14 @@ class AdminOrderController extends Controller
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);
+        }
+
+        if ($paymentStatus = $request->string('payment_status')->toString()) {
+            $query->where('payment_status', $paymentStatus);
+        }
+
+        if ($paymentMethod = $request->string('payment_method')->toString()) {
+            $query->where('payment_method', $paymentMethod);
         }
 
         if ($from = $request->string('from')->toString()) {
@@ -242,6 +252,42 @@ class AdminOrderController extends Controller
                 'dispatched_at' => $order->shipment->dispatched_at?->toIso8601String(),
                 'delivered_at' => $order->shipment->delivered_at?->toIso8601String(),
             ] : null,
+            'payments' => $full ? $order->payments
+                ->sortByDesc('id')
+                ->values()
+                ->map(fn (Payment $payment): array => [
+                    'id' => $payment->id,
+                    'provider' => $payment->provider,
+                    'status' => $payment->status,
+                    'amount_mmk' => $payment->amount_mmk,
+                    'provider_ref' => $payment->provider_ref,
+                    'paid_at' => $payment->paid_at?->toIso8601String(),
+                    'instructions' => $payment->raw_payload['instructions'] ?? null,
+                    'verification' => $payment->raw_payload['verification'] ?? null,
+                    'proofs' => $payment->paymentProofs
+                        ->sortByDesc('id')
+                        ->values()
+                        ->map(fn (PaymentProof $proof): array => [
+                            'id' => $proof->id,
+                            'source' => $proof->source,
+                            'status' => $proof->status,
+                            'original_name' => $proof->original_name,
+                            'mime_type' => $proof->mime_type,
+                            'size_bytes' => $proof->size_bytes,
+                            'review_note' => $proof->review_note,
+                            'reviewed_at' => $proof->reviewed_at?->toIso8601String(),
+                            'created_at' => $proof->created_at?->toIso8601String(),
+                        ]),
+                ]) : [],
+            'payment_required_before_shipping' => $order->payment_method !== 'cod'
+                && $order->payment_status !== Order::PAYMENT_PAID,
+            'can_mark_paid' => $order->payment_method !== 'cod'
+                && $order->payment_status !== Order::PAYMENT_PAID
+                && ! in_array($order->status, [
+                    Order::STATUS_CANCELLED,
+                    Order::STATUS_REFUSED,
+                    Order::STATUS_RETURNED,
+                ], true),
             'refusal_reason' => $order->refusal_reason,
             'cancel_reason' => $order->cancel_reason,
             'allowed_transitions' => $full ? $allowedTransitions : [],

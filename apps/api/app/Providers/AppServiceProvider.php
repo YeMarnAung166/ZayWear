@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\PaymentProofStorage;
 use App\Services\TelegramClient;
 use App\Services\TrackingToken;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -18,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(TrackingToken::class, fn () => TrackingToken::fromConfig());
         $this->app->bind(TelegramClient::class, fn () => TelegramClient::fromConfig());
+        $this->app->bind(PaymentProofStorage::class, fn () => PaymentProofStorage::fromConfig());
     }
 
     /**
@@ -34,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('orders', fn (Request $request) => Limit::perMinute($this->limit('orders', 10))->by($request->ip()));
 
         RateLimiter::for('tracking', fn (Request $request) => Limit::perMinute($this->limit('tracking', 60))->by($request->ip()));
+
+        RateLimiter::for('payment-proofs', fn (Request $request) => Limit::perMinute($this->limit('payment_proofs', 5))->by($request->ip()));
 
         // Basic-auth brute force protection for the Blade admin and admin JSON.
         RateLimiter::for('admin', fn (Request $request) => Limit::perMinute($this->limit('admin', 30))->by($request->ip()));

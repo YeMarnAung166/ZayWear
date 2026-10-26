@@ -64,6 +64,16 @@ class OrderStateMachine
             ]);
         }
 
+        // Prepaid orders must be verified before dispatch. This is enforced
+        // here rather than only in the admin UI so the API cannot bypass it.
+        if ($to === Order::STATUS_SHIPPED
+            && $order->payment_method !== 'cod'
+            && $order->payment_status !== Order::PAYMENT_PAID) {
+            throw ValidationException::withMessages([
+                'status' => ['Verify the payment before shipping this order.'],
+            ]);
+        }
+
         $order->status = $to;
 
         if (isset(self::TIMESTAMPS[$to])) {
@@ -88,6 +98,23 @@ class OrderStateMachine
         }
 
         $order->save();
+
+        // Keep the payment row consistent with the order-level status.
+        if ($to === Order::STATUS_DELIVERED && $order->payment_method === 'cod') {
+            $order->payments()
+                ->where('status', 'pending')
+                ->latest('id')
+                ->first()
+                ?->update(['status' => 'paid', 'paid_at' => Carbon::now()]);
+        }
+
+        if ($to === Order::STATUS_RETURNED && $order->payment_method !== 'cod') {
+            $order->payments()
+                ->where('status', 'paid')
+                ->latest('id')
+                ->first()
+                ?->update(['status' => 'refunded']);
+        }
 
         OrderEvent::query()->create([
             'order_id' => $order->id,

@@ -19,7 +19,10 @@ class CacheApiResponse
 {
     public function handle(Request $request, Closure $next, int $seconds = 120): Response
     {
-        $key = 'api-response:'.sha1($request->fullUrl());
+        // A settings save bumps the version, invalidating every cached public
+        // response without flushing unrelated cache entries.
+        $version = (int) Cache::get('api-response:version', 1);
+        $key = "api-response:{$version}:".sha1($request->fullUrl());
 
         $cached = Cache::get($key);
 

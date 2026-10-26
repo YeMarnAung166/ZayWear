@@ -27,8 +27,14 @@ const STATUS_OPTIONS = [
   "returned",
 ];
 
+const PAYMENT_STATUS_OPTIONS = ["unpaid", "paid", "refunded"];
+
+const PAYMENT_METHOD_OPTIONS = ["cod", "kbzpay", "wave"];
+
 type Filters = {
   status?: string;
+  payment_status?: string;
+  payment_method?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -44,6 +50,14 @@ function ordersHref(filters: Filters): string {
 
   if (filters.status) {
     params.set("status", filters.status);
+  }
+
+  if (filters.payment_status) {
+    params.set("payment_status", filters.payment_status);
+  }
+
+  if (filters.payment_method) {
+    params.set("payment_method", filters.payment_method);
   }
 
   if (filters.from) {
@@ -74,6 +88,8 @@ export default async function AdminOrdersPage({
 }) {
   const params = await searchParams;
   const status = first(params.status);
+  const paymentStatus = first(params.payment_status);
+  const paymentMethod = first(params.payment_method);
   const from = first(params.from);
   const to = first(params.to);
   const q = first(params.q);
@@ -83,6 +99,14 @@ export default async function AdminOrdersPage({
 
   if (status) {
     query.set("status", status);
+  }
+
+  if (paymentStatus) {
+    query.set("payment_status", paymentStatus);
+  }
+
+  if (paymentMethod) {
+    query.set("payment_method", paymentMethod);
   }
 
   if (from) {
@@ -106,7 +130,14 @@ export default async function AdminOrdersPage({
   );
   const counts = list.meta.status_counts;
   const allCount = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  const filters = { status, from, to, q };
+  const filters = {
+    status,
+    payment_status: paymentStatus,
+    payment_method: paymentMethod,
+    from,
+    to,
+    q,
+  };
 
   return (
     <div className="space-y-5">
@@ -123,7 +154,7 @@ export default async function AdminOrdersPage({
       <div className="-mx-4 overflow-x-auto px-4 pb-1">
         <div className="flex min-w-max gap-2">
           <Link
-            href={ordersHref({ from, to, q })}
+            href={ordersHref({ ...filters, status: "" })}
             prefetch={false}
             className={`inline-flex min-h-11 items-center rounded-full border px-3 text-sm font-semibold ${
               status === ""
@@ -155,7 +186,7 @@ export default async function AdminOrdersPage({
       <form
         method="GET"
         action="/admin/orders"
-        className="grid gap-3 rounded-lg border border-neutral-200 bg-neutral-0 p-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid gap-3 rounded-lg border border-neutral-200 bg-neutral-0 p-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         {status ? <input type="hidden" name="status" value={status} /> : null}
 
@@ -185,7 +216,7 @@ export default async function AdminOrdersPage({
           />
         </div>
 
-        <div className="lg:col-span-2">
+        <div>
           <label htmlFor="q" className="text-sm font-semibold">
             Search
           </label>
@@ -197,6 +228,44 @@ export default async function AdminOrdersPage({
             placeholder="Order number or phone"
             className="mt-1 min-h-11 w-full rounded-md border border-neutral-200 px-3 text-sm"
           />
+        </div>
+
+        <div>
+          <label htmlFor="payment_status" className="text-sm font-semibold">
+            Payment status
+          </label>
+          <select
+            id="payment_status"
+            name="payment_status"
+            defaultValue={paymentStatus}
+            className="mt-1 min-h-11 w-full rounded-md border border-neutral-200 bg-neutral-0 px-2 text-sm"
+          >
+            <option value="">All payment statuses</option>
+            {PAYMENT_STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {PAYMENT_STATUS_LABELS[option]?.en ?? option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="payment_method" className="text-sm font-semibold">
+            Payment method
+          </label>
+          <select
+            id="payment_method"
+            name="payment_method"
+            defaultValue={paymentMethod}
+            className="mt-1 min-h-11 w-full rounded-md border border-neutral-200 bg-neutral-0 px-2 text-sm"
+          >
+            <option value="">All payment methods</option>
+            {PAYMENT_METHOD_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {PAYMENT_METHOD_LABELS[option]?.en ?? option}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-end gap-2">
@@ -266,6 +335,15 @@ export default async function AdminOrdersPage({
                     <span className="text-neutral-500">Total</span>
                     <br />
                     <span className="price font-semibold">{MMK(order.total_mmk)}</span>
+                  </p>
+                  <p className="col-span-2">
+                    <span className="text-neutral-500">Payment</span>
+                    <br />
+                    {PAYMENT_METHOD_LABELS[order.payment_method]?.en ??
+                      order.payment_method}{" "}
+                    ·{" "}
+                    {PAYMENT_STATUS_LABELS[order.payment_status]?.en ??
+                      order.payment_status}
                   </p>
                 </div>
               </Link>
