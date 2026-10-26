@@ -168,15 +168,16 @@ Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apa
 
 ### 3.3 Vercel (web)
 
-1. Import the repo, root directory `apps/web`, framework Next.js.
+1. From the repo root, link once: `npx vercel link` and choose `zay-wear`. The project's Root Directory is `apps/web`, so always deploy from the repo root, not from `apps/web`.
 2. Set the variables from `apps/web/.env.production.example` **before the first build**:
    - `NEXT_PUBLIC_API_URL=https://<api>/api`
    - `NEXT_PUBLIC_IMAGE_BASE=/mock` (switch to the CDN when real photos land)
    - `NEXT_PUBLIC_USE_MOCK` unset — a production build fails if it is `1`
    - `ADMIN_TOKEN` — the same value as Railway's `ADMIN_TOKEN`
    - `ADMIN_SESSION_SECRET` — at least 32 random characters; rotating it signs every admin out
-3. Deploy, then put the production domain into Railway's `CORS_ALLOWED_ORIGINS` and `FRONTEND_URL` and redeploy the API.
-4. `apps/web/vercel.json` pins the Singapore region.
+3. Deploy from the repo root: `npx vercel --prod`. The project is not Git-connected, so a push alone does not deploy the web app.
+4. Put the production domain into Railway's `CORS_ALLOWED_ORIGINS` and `FRONTEND_URL` and redeploy the API.
+5. `apps/web/vercel.json` pins the Singapore region.
 
 ### 3.4 Telegram
 
