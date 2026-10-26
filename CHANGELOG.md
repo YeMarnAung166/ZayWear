@@ -1,5 +1,20 @@
 # CHANGELOG.md
 
+## 0.7.0 — 2026-10-26
+
+Next.js admin (V2 B1): a full day of orders can be processed without touching the API or database.
+
+- `/admin/login` exchanges the shared password for a signed httpOnly `zw_admin` cookie (12 hours); the Laravel endpoint validates the password and the limiter, the Next server holds `ADMIN_TOKEN` so it never reaches the browser
+- `/admin/orders` lists orders with status tabs and counts, date range, order-number/phone search, pagination, and a manual refresh; cards on mobile, a table from `md`
+- `/admin/orders/{id}` shows items, totals, discount, payment, customer, township, address, landmark, note, timeline, and the shipment; status buttons come from `allowed_transitions` on the API, and cancelled/refused/returned ask for a reason
+- Shipment form attaches carrier and tracking number, shows the snapshotted COD amount, and keeps the saved values on reload
+- `/admin/metrics` shows orders today/7d/30d, refusal rate and reasons, median delivery hours, delivered revenue, and per-status counts that link into the filtered list
+- Admin JSON enriched: totals and discount, note, placed-via, township detail, full phone on detail, shipment COD/dispatch fields, `allowed_transitions`, list `status_counts`, and `per_page`
+- `POST /api/admin/session` plus an `admin-login` limiter (5/min and 20/hour per IP); `ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE` overrides the minute budget
+- Admin is English-only, `noindex`, and blocked in `robots.txt`; the storefront keeps its own chrome through the `(store)` route group
+- The Blade admin stays at Laravel `/admin/orders` for one release as a fallback
+- Tests: 70 passing / 618 assertions
+
 ## 0.6.1 — 2026-10-25
 
 Wishlist entry point in the header.

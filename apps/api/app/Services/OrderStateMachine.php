@@ -36,9 +36,17 @@ class OrderStateMachine
         Order::STATUS_CANCELLED => 'cancelled_at',
     ];
 
+    /**
+     * @return array<int, string>
+     */
+    public function allowedTransitions(string $from): array
+    {
+        return self::TRANSITIONS[$from] ?? [];
+    }
+
     public function canTransition(string $from, string $to): bool
     {
-        return in_array($to, self::TRANSITIONS[$from] ?? [], true);
+        return in_array($to, $this->allowedTransitions($from), true);
     }
 
     public function transition(

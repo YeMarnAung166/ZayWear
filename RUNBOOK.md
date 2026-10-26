@@ -23,7 +23,8 @@ npx localtunnel --port 8000 --subdomain zaywear-zw
 
 - Storefront: <http://127.0.0.1:3000>
 - API: <http://127.0.0.1:8000>
-- Admin (HTTP Basic, `ADMIN_PASSWORD` in `apps/api/.env`): <http://127.0.0.1:8000/admin/orders>
+- Admin: <http://localhost:3000/admin> (`ADMIN_PASSWORD` in `apps/api/.env`; set `ADMIN_TOKEN` and `ADMIN_SESSION_SECRET` in `apps/web/.env.local`)
+- Blade admin fallback (HTTP Basic): <http://127.0.0.1:8000/admin/orders>
 - Tunnel: `https://zaywear-zw.loca.lt`
 
 Local DB is SQLite at `apps/api/database/database.sqlite`.
@@ -172,6 +173,8 @@ Repo artifacts that support this: `apps/api/Dockerfile`, `apps/api/docker/` (Apa
    - `NEXT_PUBLIC_API_URL=https://<api>/api`
    - `NEXT_PUBLIC_IMAGE_BASE=/mock` (switch to the CDN when real photos land)
    - `NEXT_PUBLIC_USE_MOCK` unset — a production build fails if it is `1`
+   - `ADMIN_TOKEN` — the same value as Railway's `ADMIN_TOKEN`
+   - `ADMIN_SESSION_SECRET` — at least 32 random characters; rotating it signs every admin out
 3. Deploy, then put the production domain into Railway's `CORS_ALLOWED_ORIGINS` and `FRONTEND_URL` and redeploy the API.
 4. `apps/web/vercel.json` pins the Singapore region.
 
@@ -194,6 +197,7 @@ Run the smoke test:
 Then, by hand:
 
 - Place a real COD order from the Vercel site. Tracking link, admin detail, and Telegram alert must all work.
+- Sign in at `https://<web>/admin`, confirm the order, attach a shipment, and move it to delivered.
 - Place one order from the bot on your phone.
 - Confirm no mock products appear (`NEXT_PUBLIC_USE_MOCK` unset).
 - `getWebhookInfo` points at Railway, not the tunnel.

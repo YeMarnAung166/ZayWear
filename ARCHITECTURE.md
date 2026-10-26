@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — System Architecture & Data Model
 
-**Version:** 1.0
+**Version:** 1.1
 **Status:** Active
 **Related:** `V1.md` (scope), `DESIGN.md` (UI), `AGENT.md` (build rules)
 
@@ -30,7 +30,7 @@ This document is the schema contract. Change it before changing code, never the 
 - **Frontend** is stateless. Cart lives in `localStorage`. No server session.
 - **Backend** owns all money, stock, and state. The client may display a total but never computes the authoritative one.
 - **Queue** is the Laravel database driver. Telegram sends and courier pushes never block a request.
-- **Admin** is server-rendered Blade inside Laravel. It is not part of the Next.js app.
+- **Admin** is the Next.js app at `/admin` (V2 B1). It keeps `ADMIN_TOKEN` server-side, calls the admin JSON API, and owns a signed httpOnly session cookie. Laravel's Blade admin stays for one release as a fallback.
 
 ### Environments
 
@@ -371,7 +371,8 @@ Failed jobs land in `failed_jobs` and are visible to the admin. A Telegram outag
 |---|---|
 | Telegram webhook | verify `X-Telegram-Bot-Api-Secret-Token` against `TELEGRAM_WEBHOOK_SECRET`; reject otherwise |
 | Admin API | `Authorization: Bearer $ADMIN_TOKEN`, constant-time comparison |
-| Admin UI | HTTP Basic auth against `ADMIN_PASSWORD`; rate-limited |
+| Admin UI (Next) | `POST /admin/session` validates `ADMIN_PASSWORD`; the Next server sets a signed httpOnly `zw_admin` cookie (HMAC-SHA256, 12 h, `ADMIN_SESSION_SECRET` ≥ 32 chars); 5/min and 20/hour per IP |
+| Blade admin (fallback) | HTTP Basic against `ADMIN_PASSWORD`; rate-limited |
 | `POST /orders` | 10/min/IP **and** 5/hour/phone |
 | Public API | 60/min/IP |
 | CORS | allow only the production domain and Vercel preview origins |
@@ -417,4 +418,5 @@ Seeders, in order: `SettingsSeeder` → `TownshipSeeder` → `CategorySeeder` �
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-10-26 | Admin moves to Next.js `/admin` with a signed httpOnly session; Blade admin kept one release as fallback |
 | 1.0 | 2026-10-20 | Initial schema, state machine, pricing and token contracts |

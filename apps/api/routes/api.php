@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AdminOrderController;
+use App\Http\Controllers\Api\AdminSessionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CategoryController;
@@ -30,6 +31,9 @@ Route::middleware('throttle:api')->group(function () {
 });
 
 Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:orders');
+
+Route::post('/admin/session', [AdminSessionController::class, 'store'])
+    ->middleware('throttle:admin-login');
 
 Route::prefix('auth')->group(function () {
     Route::post('/telegram/start', [AuthController::class, 'telegramStart'])->middleware('throttle:login');

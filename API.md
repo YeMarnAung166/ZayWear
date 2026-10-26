@@ -2,7 +2,7 @@
 
 **Base URL:** `https://<api-host>/api` (local: `http://127.0.0.1:8000/api`)
 **Format:** JSON in, JSON out. Send `Accept: application/json`.
-**Auth:** public endpoints are open; admin endpoints require a bearer token; the Telegram webhook requires a secret header.
+**Auth:** public endpoints are open; admin JSON requires a bearer token; `POST /admin/session` validates the shared admin password; the Telegram webhook requires a secret header.
 
 ---
 
@@ -22,6 +22,7 @@
 | `orders` | `POST /orders` | 10/min per IP |
 | `tracking` | `GET /orders/{number}/{token}` | 60/min per IP |
 | `admin` | Admin JSON **and** the Blade admin | 30/min per IP |
+| `admin-login` | `POST /admin/session` | 5/min and 20/hour per IP |
 | `login` | Telegram start/poll and logout | 60/min per IP |
 | `otp` | `POST /auth/otp/request` | 3/min per phone, 10/hour per IP |
 | `otp-verify` | `POST /auth/otp/verify` | 10/min per IP |
@@ -184,17 +185,39 @@ Guest checkout stays the default: `/orders/lookup` and the signed tracking link 
 
 ---
 
-## 4. Admin JSON
+## 4. Admin
+
+### `POST /admin/session`
+
+Validates the shared operations password so the Next.js admin can start a session. No bearer token is needed; the endpoint only answers whether the password is right.
+
+```json
+{ "password": "…" }
+```
+
+- `200 { "ok": true }` when the password matches `ADMIN_PASSWORD`
+- `422` with `errors.password` when it does not, or when `ADMIN_PASSWORD` is unset
+- `429` after 5 attempts in a minute or 20 in an hour from one IP (`ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE` overrides the minute budget)
+
+The endpoint does not issue a token. The Next.js server owns the signed httpOnly `zw_admin` cookie (12 hours, `ADMIN_SESSION_SECRET`), and `ADMIN_TOKEN` never leaves the server.
+
+### Admin JSON
 
 Header: `Authorization: Bearer <ADMIN_TOKEN>`. Missing or wrong → `401`. Rate limited to 30/min.
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/admin/orders` | `status`, `from`, `to` (dates), `q` (order number or phone), paginated 50 |
-| `GET` | `/admin/orders/{id}` | Full order with customer, township, items, events, shipment, payments |
+| `GET` | `/admin/orders` | `status`, `from`, `to` (dates), `q` (order number or phone), `page`; 50 per page |
+| `GET` | `/admin/orders/{id}` | Full order with customer, township, items, events, shipment, payments, `allowed_transitions` |
 | `PATCH` | `/admin/orders/{id}/status` | `{ "status": "confirmed" }`; optional `reason`, `refusal_reason` |
-| `POST` | `/admin/orders/{id}/shipment` | `{ "carrier": "…", "tracking_number": "…" }` |
-| `GET` | `/admin/metrics` | Orders/day, refusal rate, median delivery hours, revenue |
+| `POST` | `/admin/orders/{id}/shipment` | `{ "carrier": "…", "tracking_number": "…" }`; `cod_amount_mmk` is set from the order total for COD |
+| `GET` | `/admin/metrics` | Orders today/7d/30d, refusal rate and reasons, median delivery hours, delivered revenue, status counts |
+
+List response `meta`: `current_page`, `last_page`, `per_page`, `total`, and `status_counts` (one entry per status present, e.g. `{ "pending": 3, "delivered": 12 }`).
+
+Order fields common to list and detail: `id`, `order_number`, `status`, `payment_status`, `payment_method`, `placed_via`, `subtotal_mmk`, `delivery_fee_mmk`, `discount_mmk`, `total_mmk`, `note`, `customer` (`name`, `phone` masked in the list), `township` (`name_mm`, `name_en`, `region`), `address_line`, `landmark`, `items_count`, `created_at`, `refusal_reason`, `cancel_reason`.
+
+Detail adds `items` (`name_mm`, `name_en`, `size`, `color`, `qty`, `unit_price_mmk`, `line_total_mmk`), `events` (`from`, `to`, `actor`, `reason`, `at`), `shipment` (`carrier`, `tracking_number`, `cod_amount_mmk`, `dispatched_at`, `delivered_at`), the full customer phone, and `allowed_transitions` — the statuses this order may move to next. The list omits those arrays and always returns `allowed_transitions: []`.
 
 Status values: `pending`, `confirmed`, `packed`, `shipped`, `delivered`, `cancelled`, `refused`, `returned`.
 

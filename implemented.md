@@ -1,8 +1,8 @@
 # implemented.md — What Is Actually Done
 
-**Updated:** 2026-10-25
-**Phase:** V2 — customer accounts (A1), order history (A2), wishlist (A5)
-**Next:** remaining V2 items; V1 still needs the real eComReg number
+**Updated:** 2026-10-26
+**Phase:** V2 — customer accounts (A1), order history (A2), wishlist (A5), Next.js admin (B1)
+**Next:** remaining V2 items (A3 promo codes is queued); V1 still needs the real eComReg number
 
 ---
 
@@ -54,6 +54,7 @@
 - `/admin/orders` list with status filter and search, `/admin/orders/{id}` detail, `/admin/metrics`
 - HTTP Basic via `ADMIN_PASSWORD`; `/` redirects to the order list
 - Status transitions and courier/tracking-number capture post back through the same state machine
+- Kept for one release after B1 as a fallback; the Next.js admin is the primary UI
 
 ### Storefront (Next.js)
 - 12 routes: `/`, `/c/[slug]`, `/p/[slug]`, `/cart`, `/checkout`, `/order/[number]/success`, `/order/[number]/[token]`, `/search`, `/returns`, `/terms`, `/privacy`, `/contact`, plus `not-found`
@@ -110,9 +111,23 @@
 - The header has a wishlist heart with the saved count; guests are sent to login and returned to the wishlist
 - Inactive products stay saved but are hidden from both wishlist responses and return if reactivated
 
+### V2 admin in Next.js (B1, 2026-10-26)
+- `/admin/login` posts the shared password to the new `POST /api/admin/session`; Laravel compares it to `ADMIN_PASSWORD` in constant time and the `admin-login` limiter allows 5/min and 20/hour per IP
+- On success the Next server sets a signed httpOnly `zw_admin` cookie (HMAC-SHA256, 12 hours, `ADMIN_SESSION_SECRET` ≥ 32 chars); `ADMIN_TOKEN` stays server-only, so no credential reaches client JavaScript
+- Route groups split the app: `app/(store)` keeps the header, footer, Telegram FAB and providers, while `app/(admin)/admin` is English-only, `noindex`, and excluded in `robots.ts`
+- `/admin/orders`: status tabs with counts, from/to dates, order-number or phone search, 50 per page, and a manual **Refresh** (no polling); mobile cards, table from `md`
+- `/admin/orders/{id}`: items, subtotal/delivery/discount/total, payment, customer, township, address, landmark, note, timeline, shipment, and status buttons generated from the API's `allowed_transitions`
+- Cancel, refuse, and return ask for a reason; refusal uses the shared reason list; COD shows the snapshotted amount on the shipment card
+- Shipment form attaches carrier + tracking number through `POST /admin/orders/{id}/shipment`; saved values survive a reload
+- `/admin/metrics`: orders today/7d/30d, refusal rate and reasons, median delivery hours, delivered revenue, and status counts that deep-link into the filtered list
+- Admin JSON additions: totals and discount, note, placed-via, township name/region, full phone on detail (masked in the list), shipment COD and dispatch fields, `allowed_transitions`, list `status_counts`, and `per_page`
+- Server actions revalidate the list, detail, and metrics after a change; API errors surface on the detail page instead of a blank screen
+
 ### Verification
 - `npm run build` — 29 routes, TypeScript clean; `npm run lint` clean
-- `php artisan test` — 64 passing / 591 assertions, including the wishlist feature tests
+- `php artisan test` — 70 passing / 618 assertions, including the wishlist and B1 admin tests
+- B1 admin tests cover password accept/reject, the login limiter, detail pricing/contact/`allowed_transitions`, list `status_counts` and `per_page`, and shipment COD capture
+- Local admin E2E in Chrome: wrong password rejected, sign in, `ZW-000023` pending → confirmed → packed → shipment saved → shipped → delivered, payment `paid`, 5 timeline events; metrics rendered; status/date/search filters, logout, httpOnly cookie, and a 375px layout with no horizontal overflow
 - Wishlist tests cover guest rejection, save/list, idempotent saves, a new session, customer scoping, idempotent delete, unknown/inactive products, and inactive products disappearing from existing lists
 - `vendor/bin/pint --dirty` clean
 - API smoke: wishlist save `201`, duplicate `200`, ids/list, delete `200`, guest `401`; guest wishlist page `307` to login, and a signed-in login with `?next` `307` to the wishlist
@@ -133,7 +148,7 @@
 | Payment states | `unpaid`, `paid`, `failed`, `refunded`; COD → `paid` on `delivered` |
 | Order number | `ZW-000123`, derived from the primary key (no sequence) |
 | Tracking | Stateless HMAC token in the path, 90 days, `no-referrer` |
-| Admin | Laravel Blade, HTTP Basic, list + detail only |
+| Admin | Next.js `/admin` (B1) with a signed httpOnly cookie; Laravel Blade kept one release as fallback |
 | Bot flow | 8-step chat order + confirm (product → size → qty → name → phone → township → address → landmark); township picker; real COD order via shared `OrderCreator` |
 | Analytics | DB-computed business metrics + Plausible |
 | Stack | Next.js 16 / React 19 / Tailwind 4 / Laravel 13 / PHP 8.4 |

@@ -7,6 +7,7 @@ use App\Models\ProductVariant;
 use App\Models\Township;
 use App\Services\TrackingToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -20,8 +21,11 @@ class OrderApiTest extends TestCase
 
         $this->seed();
 
+        Cache::flush();
+
         config([
             'shop.admin_token' => 'test-admin-token',
+            'shop.admin_password' => 'test-admin-password',
             'shop.order_token_secret' => 'test-order-token-secret',
             'shop.order_token_ttl_days' => 90,
             'shop.free_delivery_threshold_mmk' => 80000,
@@ -262,6 +266,78 @@ class OrderApiTest extends TestCase
         $this->getJson('/api/admin/metrics', $this->adminHeaders())
             ->assertOk()
             ->assertJsonPath('refusal_reasons_30d.wrong_size', 1);
+    }
+
+    public function test_admin_session_accepts_the_configured_password(): void
+    {
+        $this->postJson('/api/admin/session', ['password' => 'test-admin-password'])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+    }
+
+    public function test_admin_session_rejects_a_wrong_password(): void
+    {
+        $this->postJson('/api/admin/session', ['password' => 'wrong-password'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('password');
+    }
+
+    public function test_admin_session_is_rate_limited(): void
+    {
+        config(['shop.rate_limits.admin_login' => 2]);
+
+        $this->postJson('/api/admin/session', ['password' => 'wrong-password'])
+            ->assertStatus(422);
+        $this->postJson('/api/admin/session', ['password' => 'wrong-password'])
+            ->assertStatus(422);
+        $this->postJson('/api/admin/session', ['password' => 'wrong-password'])
+            ->assertStatus(429);
+    }
+
+    public function test_admin_order_detail_has_pricing_contact_and_allowed_transitions(): void
+    {
+        $order = $this->placeOrder();
+        $order->update(['note' => 'Call before delivery']);
+
+        $response = $this->getJson("/api/admin/orders/{$order->id}", $this->adminHeaders())
+            ->assertOk()
+            ->assertJsonPath('data.note', 'Call before delivery')
+            ->assertJsonPath('data.township.name_en', 'Bahan')
+            ->assertJsonPath('data.customer.phone', '09771234567')
+            ->assertJsonPath('data.allowed_transitions', [
+                Order::STATUS_CONFIRMED,
+                Order::STATUS_CANCELLED,
+            ]);
+
+        $this->assertSame($order->subtotal_mmk, $response->json('data.subtotal_mmk'));
+        $this->assertSame($order->delivery_fee_mmk, $response->json('data.delivery_fee_mmk'));
+        $this->assertSame(0, $response->json('data.discount_mmk'));
+        $this->assertSame($order->total_mmk, $response->json('data.total_mmk'));
+    }
+
+    public function test_admin_order_list_returns_status_counts(): void
+    {
+        $this->placeOrder();
+
+        $this->getJson('/api/admin/orders', $this->adminHeaders())
+            ->assertOk()
+            ->assertJsonPath('meta.status_counts.pending', 1)
+            ->assertJsonPath('meta.per_page', 50);
+    }
+
+    public function test_admin_can_attach_a_shipment_with_the_cod_amount(): void
+    {
+        $order = $this->placeOrder();
+
+        $this->postJson(
+            "/api/admin/orders/{$order->id}/shipment",
+            ['carrier' => 'Royal Express', 'tracking_number' => 'RX-123'],
+            $this->adminHeaders(),
+        )
+            ->assertOk()
+            ->assertJsonPath('data.shipment.carrier', 'Royal Express')
+            ->assertJsonPath('data.shipment.tracking_number', 'RX-123')
+            ->assertJsonPath('data.shipment.cod_amount_mmk', $order->total_mmk);
     }
 
     /**

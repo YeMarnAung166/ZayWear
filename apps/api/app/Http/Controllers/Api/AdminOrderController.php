@@ -19,7 +19,9 @@ class AdminOrderController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = Order::query()->with(['customer', 'township', 'items']);
+        $query = Order::query()
+            ->with(['customer', 'township'])
+            ->withCount('items');
 
         if ($status = $request->string('status')->toString()) {
             $query->where('status', $status);
@@ -47,16 +49,24 @@ class AdminOrderController extends Controller
             'meta' => [
                 'current_page' => $orders->currentPage(),
                 'last_page' => $orders->lastPage(),
+                'per_page' => $orders->perPage(),
                 'total' => $orders->total(),
+                'status_counts' => $this->statusCounts(),
             ],
         ]);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(int $id, OrderStateMachine $stateMachine): JsonResponse
     {
         $order = Order::query()->with(self::RELATIONS)->findOrFail($id);
 
-        return response()->json(['data' => $this->present($order, full: true)]);
+        return response()->json([
+            'data' => $this->present(
+                $order,
+                full: true,
+                allowedTransitions: $stateMachine->allowedTransitions($order->status),
+            ),
+        ]);
     }
 
     public function updateStatus(
@@ -74,13 +84,22 @@ class AdminOrderController extends Controller
             $request->input('refusal_reason'),
         );
 
+        $order = $order->fresh()->load(self::RELATIONS);
+
         return response()->json([
-            'data' => $this->present($order->fresh()->load(self::RELATIONS), full: true),
+            'data' => $this->present(
+                $order,
+                full: true,
+                allowedTransitions: $stateMachine->allowedTransitions($order->status),
+            ),
         ]);
     }
 
-    public function shipment(Request $request, int $id): JsonResponse
-    {
+    public function shipment(
+        Request $request,
+        int $id,
+        OrderStateMachine $stateMachine,
+    ): JsonResponse {
         $validated = $request->validate([
             'carrier' => ['required', 'string', 'max:80'],
             'tracking_number' => ['nullable', 'string', 'max:80'],
@@ -98,8 +117,14 @@ class AdminOrderController extends Controller
             ],
         );
 
+        $order = $order->fresh()->load(self::RELATIONS);
+
         return response()->json([
-            'data' => $this->present($order->fresh()->load(self::RELATIONS), full: true),
+            'data' => $this->present(
+                $order,
+                full: true,
+                allowedTransitions: $stateMachine->allowedTransitions($order->status),
+            ),
         ]);
     }
 
@@ -138,35 +163,61 @@ class AdminOrderController extends Controller
                 ->where('status', Order::STATUS_DELIVERED)
                 ->where('created_at', '>=', $since)
                 ->sum('total_mmk'),
-            'status_counts' => Order::query()
-                ->selectRaw('status, count(*) as total')
-                ->groupBy('status')
-                ->pluck('total', 'status'),
+            'status_counts' => $this->statusCounts(),
         ]);
     }
 
     /**
+     * @return array<string, int>
+     */
+    private function statusCounts(): array
+    {
+        return Order::query()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn ($total) => (int) $total)
+            ->all();
+    }
+
+    /**
+     * @param  array<int, string>  $allowedTransitions
      * @return array<string, mixed>
      */
-    private function present(Order $order, bool $full = false): array
-    {
+    private function present(
+        Order $order,
+        bool $full = false,
+        array $allowedTransitions = [],
+    ): array {
+        $itemsCount = $order->items_count
+            ?? ($order->relationLoaded('items') ? $order->items->count() : 0);
+
         return [
             'id' => $order->id,
             'order_number' => $order->order_number,
             'status' => $order->status,
             'payment_status' => $order->payment_status,
             'payment_method' => $order->payment_method,
+            'placed_via' => $order->placed_via,
+            'subtotal_mmk' => $order->subtotal_mmk,
+            'delivery_fee_mmk' => $order->delivery_fee_mmk,
+            'discount_mmk' => $order->discount_mmk,
             'total_mmk' => $order->total_mmk,
+            'note' => $order->note,
             'customer' => [
                 'name' => $order->customer?->name,
                 'phone' => $full
                     ? $order->customer?->phone
                     : $this->maskPhone((string) $order->customer?->phone),
             ],
-            'township' => $order->township?->name_en,
+            'township' => $order->township ? [
+                'name_mm' => $order->township->name_mm,
+                'name_en' => $order->township->name_en,
+                'region' => $order->township->region,
+            ] : null,
             'address_line' => $order->address_line,
             'landmark' => $order->landmark,
-            'items_count' => $order->items->count(),
+            'items_count' => $itemsCount,
             'created_at' => $order->created_at?->toIso8601String(),
             'items' => $full ? $order->items->map(fn ($item) => [
                 'name_mm' => $item->product_name_mm,
@@ -184,11 +235,16 @@ class AdminOrderController extends Controller
                 'reason' => $event->reason,
                 'at' => $event->created_at?->toIso8601String(),
             ])->values() : [],
-            'shipment' => $order->shipment ? [
+            'shipment' => $full && $order->shipment ? [
                 'carrier' => $order->shipment->carrier,
                 'tracking_number' => $order->shipment->tracking_number,
+                'cod_amount_mmk' => $order->shipment->cod_amount_mmk,
+                'dispatched_at' => $order->shipment->dispatched_at?->toIso8601String(),
+                'delivered_at' => $order->shipment->delivered_at?->toIso8601String(),
             ] : null,
             'refusal_reason' => $order->refusal_reason,
+            'cancel_reason' => $order->cancel_reason,
+            'allowed_transitions' => $full ? $allowedTransitions : [],
         ];
     }
 

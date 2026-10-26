@@ -38,6 +38,12 @@ class AppServiceProvider extends ServiceProvider
         // Basic-auth brute force protection for the Blade admin and admin JSON.
         RateLimiter::for('admin', fn (Request $request) => Limit::perMinute($this->limit('admin', 30))->by($request->ip()));
 
+        // The Next.js admin login is password-only, so keep guessing expensive.
+        RateLimiter::for('admin-login', fn (Request $request) => [
+            Limit::perMinute($this->limit('admin_login', 5))->by('admin-login:'.$request->ip()),
+            Limit::perHour(20)->by('admin-login-hour:'.$request->ip()),
+        ]);
+
         RateLimiter::for('login', fn (Request $request) => Limit::perMinute($this->limit('login', 60))->by($request->ip()));
 
         // Phone OTPs are the expensive path: limit both the phone and the IP.

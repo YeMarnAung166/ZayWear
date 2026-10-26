@@ -30,6 +30,7 @@ return [
         'orders' => (int) env('ORDER_RATE_LIMIT_PER_MINUTE', 10),
         'tracking' => (int) env('TRACKING_RATE_LIMIT_PER_MINUTE', 60),
         'admin' => (int) env('ADMIN_RATE_LIMIT_PER_MINUTE', 30),
+        'admin_login' => (int) env('ADMIN_LOGIN_RATE_LIMIT_PER_MINUTE', 5),
         'login' => (int) env('LOGIN_RATE_LIMIT_PER_MINUTE', 60),
         'otp' => (int) env('OTP_RATE_LIMIT_PER_MINUTE', 3),
         'otp_verify' => (int) env('OTP_VERIFY_RATE_LIMIT_PER_MINUTE', 10),
